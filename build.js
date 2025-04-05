@@ -1,6 +1,7 @@
 import esbuild from "esbuild";
 import fs from "fs-extra";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 
 // Get __dirname equivalent in ESM
@@ -12,18 +13,24 @@ const distDir = path.join(__dirname, "dist");
 fs.removeSync(distDir);
 fs.ensureDirSync(distDir);
 
+const uuid = crypto.randomUUID();
+
 esbuild
   .build({
     entryPoints: ["quanta.ts"],
     bundle: true,
     minify: true,
-    outfile: "dist/quanta.min.js",
+    outfile: `dist/quanta.${uuid}.min.js`,
     platform: "browser",
   })
   .catch(() => process.exit(1))
   .then(() => {
     const publicDir = path.join(__dirname, "public");
     const distDir = path.join(__dirname, "dist");
+
+    const redirectsPath = path.join(distDir, "_redirects");
+    const redirectsContent = `/*    /quanta.${uuid}.min.js    200`;
+    fs.writeFileSync(redirectsPath, redirectsContent, "utf8");
 
     fs.readdir(publicDir, (err, files) => {
       if (err) {
