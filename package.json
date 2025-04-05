@@ -1,0 +1,12 @@
+{
+  "name": "quanta.js",
+  "version": "${version}",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.2",
+    "fs-extra": "^11.1.1"
+  }
+}
