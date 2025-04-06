@@ -1,0 +1,29 @@
+name: Purge Cloudflare Cache
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  purge-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for new deployment...
+        run: sleep 30
+      - name: Purge Cloudflare Cache
+        env:
+          ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+        run: |
+          curl https://api.cloudflare.com/client/v4/zones/$ZONE_ID/purge_cache \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+            -H "X-Auth-Key: $CLOUDFLARE_API_KEY" \
+            -d '{
+              "hosts": [
+                "js.quanta.tools"
+              ]
+            }'
