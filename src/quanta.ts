@@ -141,7 +141,25 @@ class Quanta {
       return;
     }
 
-    this.log("view", fullPath(window.location));
+    const path = fullPath(window.location).slice(
+      0,
+      200 - "view".length - "referrer".length - 1 // 1 unit separator
+    );
+    const referrer = document.referrer;
+    const props: Record<string, string> = { path };
+    if (referrer) {
+      props.referrer = referrer;
+      props.path = props.path.slice(
+        0,
+        200 -
+          referrer.length -
+          "view".length -
+          "path".length -
+          "referrer".length -
+          3 // 3 unit separators
+      );
+    }
+    this.log("view", props);
   }
 
   /**

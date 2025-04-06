@@ -1,6 +1,5 @@
 // Export the Quanta class as the default and named export
 import Quanta from "./quanta";
-
 import { installFetchPolyfill } from "./polyfill";
 
 // Install fetch polyfill early
