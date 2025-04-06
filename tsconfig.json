@@ -4,6 +4,7 @@
     "module": "esnext",
     "lib": ["dom", "dom.iterable", "esnext"],
     "declaration": true,
+    "declarationDir": "dist",
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,

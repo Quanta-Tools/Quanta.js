@@ -1,6 +1,6 @@
 {
   "name": "quanta.tools",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Quanta.js library",
   "type": "module",
   "main": "dist/index.cjs.js",
@@ -16,9 +16,8 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/quanta.esm.js",
-      "require": "./dist/quanta.cjs.js",
-      "browser": "./dist/quanta.min.js",
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.cjs.js",
       "types": "./dist/index.d.ts"
     }
   },
