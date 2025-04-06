@@ -14,16 +14,25 @@ jobs:
       - name: Purge Cloudflare Cache
         env:
           ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          curl https://api.cloudflare.com/client/v4/zones/$ZONE_ID/purge_cache \
+          response=$(curl -s -w "\n%{http_code}" https://api.cloudflare.com/client/v4/zones/$ZONE_ID/purge_cache \
             -X POST \
             -H 'Content-Type: application/json' \
-            -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
-            -H "X-Auth-Key: $CLOUDFLARE_API_KEY" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -d '{
               "hosts": [
                 "js.quanta.tools"
               ]
-            }'
+            }')
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$ d')
+
+          echo "Response body: $body"
+          echo "Status code: $http_code"
+
+          if [[ $http_code -lt 200 || $http_code -ge 300 ]]; then
+            echo "Failed to purge cache"
+            exit 1
+          fi
