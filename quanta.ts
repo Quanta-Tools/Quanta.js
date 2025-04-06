@@ -51,6 +51,7 @@ class Quanta {
     }
 
     this.debugLog("Quanta initialized");
+    (window as unknown as { quanta: Quanta }).quanta = this;
     this._initialized = true;
 
     // Track current path
