@@ -27,6 +27,7 @@ class Quanta {
    */
   static initialize(): void {
     if (this._initialized) return;
+    if (this.getScriptTag() === null) return;
 
     // Auto-detect app ID from script tag if not provided
     this._appId = this.getAppIdFromScriptTag();
@@ -65,24 +66,21 @@ class Quanta {
   private static getAppIdFromScriptTag(): string {
     try {
       // Find all script tags
-      const scripts = document.getElementsByTagName("script");
+      const script = this.getScriptTag();
+      if (!script) throw new Error("Script tag not found");
 
-      // Look for the Quanta script tag
-      for (let i = 0; i < scripts.length; i++) {
-        const src = scripts[i].src;
-        if (!src) continue;
+      const src = script.src;
+      if (!src) throw new Error("src not found");
 
-        // Match the pattern https://js.quanta.tools/app/{appId}.js
-        const match = src.match(
-          /^((https?:)?\/\/)?js\.quanta\.tools\/app\/([^\/]+)\.js$/i
-        );
-        if (match && match[3]) {
-          return match[3];
-        }
+      // Match the pattern https://js.quanta.tools/app/{appId}.js
+      const match = src.match(
+        /^((https?:)?\/\/)?js\.quanta\.tools\/app\/([^\/]+)\.js$/i
+      );
+      if (match && match[3]) {
+        return match[3];
       }
-    } catch (e) {
-      this.debugError("Failed to extract Quanta app ID from script tag:", e);
-      return "";
+    } catch {
+      // Ignore errors
     }
 
     this.debugError(
@@ -93,6 +91,16 @@ class Quanta {
     );
 
     return "";
+  }
+
+  private static getScriptTag(): HTMLScriptElement | null {
+    const scripts = document.getElementsByTagName("script");
+    for (let i = 0; i < scripts.length; i++) {
+      if (scripts[i].src.match(/^((https?:)?\/\/)?js\.quanta\.tools/)) {
+        return scripts[i];
+      }
+    }
+    return null;
   }
 
   /**
@@ -619,10 +627,11 @@ interface ABExperiment {
 
 // Auto-initialize when loaded via script tag
 if (typeof window !== "undefined") {
-  console.log("added event listener");
-  // Use setTimeout to ensure the DOM is ready and all script tags are available
+  // if script tag loaded, initialize
+  Quanta.initialize();
+
+  // if script tag not loaded, wait
   window.addEventListener("DOMContentLoaded", () => {
-    console.log("triggered event listener");
     Quanta.initialize();
   });
 }
