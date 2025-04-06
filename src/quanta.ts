@@ -28,15 +28,19 @@ class Quanta {
    * Initialize the Quanta SDK
    * @param appId Your Quanta application ID (optional if loaded via script tag)
    */
-  static initialize(): void {
+  static initialize(appId?: string): void {
     if (this._initialized) return;
+    if (typeof window === "undefined") {
+      console.log("[Quanta] Skipping client sdk call on server.");
+      return;
+    }
     if (this.getScriptTag() === null) return;
 
     // Parse any data attributes on the script tag
     this.parseScriptTagAttributes();
 
     // Auto-detect app ID from script tag if not provided
-    this._appId = this.getAppIdFromScriptTag();
+    this._appId = appId === undefined ? this.getAppIdFromScriptTag() : appId;
 
     if (!this._appId) {
       this.debugWarn("No Quanta app ID provided. Analytics will not be sent.");
@@ -166,6 +170,8 @@ class Quanta {
   }
 
   private static getScriptTag(): HTMLScriptElement | null {
+    if (typeof window === "undefined") return null;
+
     const scripts = document.getElementsByTagName("script");
     for (let i = 0; i < scripts.length; i++) {
       if (scripts[i].src.match(/^((https?:)?\/\/)?js\.quanta\.tools/)) {
@@ -232,6 +238,10 @@ class Quanta {
     revenue: number = 0,
     addedArguments: Record<string, string> | string = {}
   ): void {
+    if (typeof window === "undefined") {
+      console.log("[Quanta] Skipping client sdk call on server.");
+      return;
+    }
     if (!this._initialized) {
       this.initialize();
     }
