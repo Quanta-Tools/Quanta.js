@@ -55,6 +55,11 @@ class Quanta {
     // Process any queued events
     this.processQueue();
 
+    // Check if app is claimed (only in debug mode)
+    if (this.isDebug()) {
+      this.checkClaimed();
+    }
+
     // Send launch event
     this.log("launch");
   }
@@ -601,6 +606,50 @@ class Quanta {
   private static debugError(...args: any[]): void {
     if (!this.shouldLog()) return;
     console.error(...args);
+  }
+
+  /**
+   * Checks if the app has been claimed and shows welcome message if not
+   */
+  private static async checkClaimed(): Promise<void> {
+    if (!this._appId) return;
+
+    try {
+      const response = await fetch(
+        `https://quanta.tools/api/claimed/${this._appId}`
+      );
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (!data.unClaimed) return;
+
+      // App is unclaimed, show welcome message
+      console.log(
+        `%c
+       :@@@               +@@+    @@@             
+      @@  @:             @@  @   @  @@            
+      @@ @@             @@  @@  @@  @             
+      @ @@        =     @@  @   @  @@      =     +
+     @@@@:@@    @@ @@   @  @=  @@ @@    @@@ @@=@@ 
+    :@@    @   @@  @@   @@@    @@@@    @@    @@   
+ @@@@@@   @@   @@@@    @@@     @@     @@@    @@   
+     @     \\@@@@ \\@@@@@  \\@@@@@ \\@@@@@  \\@@@@     
+`,
+        "font-family:monospace;font-weight:600"
+      );
+      console.log("Welcome to Quanta! 🥳");
+      console.log("Your analytics are fully set up.");
+      console.log(
+        "See your first events coming in and attach this app to your Quanta account at"
+      );
+      console.log(`https://quanta.tools/setup/${this._appId}`);
+      console.log("");
+      console.log(
+        "Once your app is attached to an account, this welcome message won't show up anymore. 🚮"
+      );
+    } catch {
+      // Silently fail if there's an issue with the API call
+    }
   }
 }
 
