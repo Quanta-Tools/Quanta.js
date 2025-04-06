@@ -74,7 +74,7 @@ class Quanta {
 
       // Match the pattern https://js.quanta.tools/app/{appId}.js
       const match = src.match(
-        /^((https?:)?\/\/)?js\.quanta\.tools\/app\/([^\/]+)\.js$/i
+        /^((https?:)?\/\/)?js\.quanta\.tools\/app\/([^\/]+)\.js(\?[^\?]*)?$/i
       );
       if (match && match[3]) {
         return match[3];
@@ -559,7 +559,7 @@ class Quanta {
     const bytes = new Uint8Array(16);
 
     for (let i = 0; i < 16; i++) {
-      bytes[i] = parseInt(uuid.substr(i * 2, 2), 16);
+      bytes[i] = parseInt(uuid.substring(i * 2, i * 2 + 2), 16);
     }
 
     // Convert to Base64 and make URL-safe
@@ -588,23 +588,19 @@ class Quanta {
     this.loggingEnabled = false;
   }
 
-  // Helper methods for debug-only logging
-  private static debugLog(message: string, ...args: any[]): void {
-    if (this.shouldLog()) {
-      console.log(message, ...args);
-    }
+  private static debugLog(...args: any[]): void {
+    if (!this.shouldLog()) return;
+    console.log(...args);
   }
 
-  private static debugWarn(message: string, ...args: any[]): void {
-    if (this.shouldLog()) {
-      console.warn(message, ...args);
-    }
+  private static debugWarn(...args: any[]): void {
+    if (!this.shouldLog()) return;
+    console.warn(...args);
   }
 
-  private static debugError(message: string, ...args: any[]): void {
-    if (this.shouldLog()) {
-      console.error(message, ...args);
-    }
+  private static debugError(...args: any[]): void {
+    if (!this.shouldLog()) return;
+    console.error(...args);
   }
 }
 
