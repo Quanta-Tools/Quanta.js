@@ -8,6 +8,10 @@ if (typeof window !== "undefined") {
   installFetchPolyfill();
 }
 
+function fullPath(url: Location) {
+  return url.href.slice(url.origin.length);
+}
+
 /**
  * Quanta Analytics SDK for Web
  */
@@ -20,6 +24,12 @@ class Quanta {
   private static _queue: EventTask[] = [];
   private static _isProcessing = false;
   private static _installDate = 0;
+  // New configuration properties for script tag data attributes
+  private static _skipFirstViewEvent = false;
+  private static _skipNavigationViewEvents = false;
+  private static _skipAllViewEvents = false;
+  private static _isFirstViewEvent = true;
+  private static _currentPath = "";
 
   /**
    * Initialize the Quanta SDK
@@ -28,6 +38,9 @@ class Quanta {
   static initialize(): void {
     if (this._initialized) return;
     if (this.getScriptTag() === null) return;
+
+    // Parse any data attributes on the script tag
+    this.parseScriptTagAttributes();
 
     // Auto-detect app ID from script tag if not provided
     this._appId = this.getAppIdFromScriptTag();
@@ -40,6 +53,9 @@ class Quanta {
     this.debugLog("Quanta initialized");
     this._initialized = true;
 
+    // Track current path
+    this._currentPath = fullPath(window.location);
+
     // Load or generate user ID
     this._id = this.loadOrCreateId();
     this._installDate = this.loadOrCreateInstallDate();
@@ -48,6 +64,9 @@ class Quanta {
     const abJson = localStorage.getItem("tools.quanta.ab") || "";
     this._abLetters = this.getAbLetters(abJson);
     this._abDict = this.getAbDict(abJson);
+
+    // Setup URL change listeners
+    this.setupUrlChangeListeners();
 
     // Load any queued events
     this.loadQueue();
@@ -61,7 +80,105 @@ class Quanta {
     }
 
     // Send launch event
-    this.log("launch");
+    this.sendViewEvent();
+  }
+
+  /**
+   * Set up listeners to detect URL changes from both history API and navigation events
+   */
+  private static setupUrlChangeListeners(): void {
+    if (typeof window === "undefined") return;
+
+    // Listen for popstate event (browser back/forward)
+    window.addEventListener("popstate", () => {
+      this.handleUrlChange();
+    });
+
+    // Monitor pushState and replaceState
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = function (...args) {
+      originalPushState.apply(this, args);
+      Quanta.handleUrlChange();
+    };
+
+    history.replaceState = function (...args) {
+      originalReplaceState.apply(this, args);
+      Quanta.handleUrlChange();
+    };
+  }
+
+  /**
+   * Handle URL changes by checking if path changed and sending view event
+   */
+  private static handleUrlChange(): void {
+    const newPath = fullPath(window.location);
+    if (newPath !== this._currentPath) {
+      this._currentPath = newPath;
+      this._isFirstViewEvent = false; // First view is only the initial page load
+      this.sendViewEvent();
+    }
+  }
+
+  /**
+   * Send a view event to Quanta
+   * @param viewName Name of the view
+   */
+  static sendViewEvent(): void {
+    if (!this._initialized) {
+      this.initialize();
+    }
+
+    // Skip view events based on configuration
+    if (this._skipAllViewEvents) {
+      return;
+    }
+
+    if (this._skipFirstViewEvent && this._isFirstViewEvent) {
+      this._isFirstViewEvent = false;
+      return;
+    }
+
+    if (this._skipNavigationViewEvents && !this._isFirstViewEvent) {
+      return;
+    }
+
+    this.log("view", fullPath(window.location));
+  }
+
+  /**
+   * Parse data attributes from the script tag
+   */
+  private static parseScriptTagAttributes(): void {
+    const scriptTag = this.getScriptTag();
+    if (!scriptTag) return;
+
+    // Parse boolean data attributes
+    this._skipFirstViewEvent = scriptTag.hasAttribute(
+      "data-skip-first-view-event"
+    );
+    this._skipNavigationViewEvents = scriptTag.hasAttribute(
+      "data-skip-navigation-view-events"
+    );
+    this._skipAllViewEvents = scriptTag.hasAttribute(
+      "data-skip-all-view-events"
+    );
+
+    // Enable debug logs if requested
+    if (scriptTag.hasAttribute("data-enable-debug-logs")) {
+      this.enableLogging();
+    }
+  }
+
+  private static getScriptTag(): HTMLScriptElement | null {
+    const scripts = document.getElementsByTagName("script");
+    for (let i = 0; i < scripts.length; i++) {
+      if (scripts[i].src.match(/^((https?:)?\/\/)?js\.quanta\.tools/)) {
+        return scripts[i];
+      }
+    }
+    return null;
   }
 
   /**
@@ -98,22 +215,15 @@ class Quanta {
     return "";
   }
 
-  private static getScriptTag(): HTMLScriptElement | null {
-    const scripts = document.getElementsByTagName("script");
-    for (let i = 0; i < scripts.length; i++) {
-      if (scripts[i].src.match(/^((https?:)?\/\/)?js\.quanta\.tools/)) {
-        return scripts[i];
-      }
-    }
-    return null;
-  }
-
   /**
    * Log an event to Quanta
    * @param event Event name
-   * @param addedArguments Additional event parameters
+   * @param addedArguments Additional event parameters or formatted argument string
    */
-  static log(event: string, addedArguments: Record<string, string> = {}): void {
+  static log(
+    event: string,
+    addedArguments: Record<string, string> | string = {}
+  ): void {
     this.logWithRevenue(event, 0, addedArguments);
   }
 
@@ -121,12 +231,12 @@ class Quanta {
    * Log an event with revenue to Quanta
    * @param event Event name
    * @param revenue Revenue amount
-   * @param addedArguments Additional event parameters
+   * @param addedArguments Additional event parameters or formatted argument string
    */
   static logWithRevenue(
     event: string,
     revenue: number = 0,
-    addedArguments: Record<string, string> = {}
+    addedArguments: Record<string, string> | string = {}
   ): void {
     if (!this._initialized) {
       this.initialize();
@@ -140,19 +250,27 @@ class Quanta {
     }
 
     let argString = "";
-    const sortedKeys = Object.keys(addedArguments).sort();
 
-    for (const key of sortedKeys) {
-      const safeKey = this.safe(key, false);
-      const safeValue = this.safe(addedArguments[key], false);
-      argString += `${safeKey}${UNIT_SEPARATOR}${safeValue}${UNIT_SEPARATOR}`;
-    }
+    // Check if addedArguments is a direct string or a Record
+    if (typeof addedArguments === "string") {
+      // Direct string case - use as is, just ensure it's safe
+      argString = this.safe(addedArguments, true);
+    } else {
+      // Record case - existing logic
+      const sortedKeys = Object.keys(addedArguments).sort();
 
-    if (argString.length > 0) {
-      argString = argString.substring(
-        0,
-        argString.length - UNIT_SEPARATOR.length
-      );
+      for (const key of sortedKeys) {
+        const safeKey = this.safe(key, false);
+        const safeValue = this.safe(addedArguments[key], false);
+        argString += `${safeKey}${UNIT_SEPARATOR}${safeValue}${UNIT_SEPARATOR}`;
+      }
+
+      if (argString.length > 0) {
+        argString = argString.substring(
+          0,
+          argString.length - UNIT_SEPARATOR.length
+        );
+      }
     }
 
     // Check if event + args exceeds length limit
@@ -313,8 +431,8 @@ class Quanta {
 
   private static isDebug(): boolean {
     return (
-      window.location.hostname.split(":")[0] === "localhost" ||
-      window.location.hostname.split(":")[0] === "127.0.0.1"
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1"
     );
   }
 
