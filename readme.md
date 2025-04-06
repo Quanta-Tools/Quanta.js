@@ -13,7 +13,7 @@ Quanta.js is a lightweight analytics SDK for web applications. It's a JavaScript
 
 ## Installation
 
-### Option 1: Script Tag (Recommended)
+### Option 1: Script Tag
 
 Add the following script tag to your HTML:
 
@@ -23,35 +23,39 @@ Add the following script tag to your HTML:
 
 Replace `{YOUR_APP_ID}` with your Quanta application ID.
 
-<!--
 ### Option 2: NPM
 
 ```bash
-npm install @quanta/js
+npm install quanta.tools
 ```
 
 Then import it into your application:
 
 ```js
-import Quanta from "@quanta/js";
+import { Quanta } from "quanta.tools";
 
 // Initialize with your app ID
-Quanta.initialize();
-``` -->
+Quanta.initialize("YOUR_APP_ID");
+
+// Track events
+Quanta.log("button_click");
+```
 
 ## Usage
 
 ### Basic Event Tracking
 
 ```js
-// Track a simple event
+// When using the script tag:
 window.quanta.log("button_click");
-
-// Track an event with parameters
 window.quanta.log("product_view", { product_id: "123", category: "shoes" });
-
-// Track an event with revenue
 window.quanta.logWithRevenue("purchase", 29.99, { product_id: "123" });
+
+// When using npm:
+import { Quanta } from "quanta.tools";
+Quanta.log("button_click");
+Quanta.log("product_view", { product_id: "123", category: "shoes" });
+Quanta.logWithRevenue("purchase", 29.99, { product_id: "123" });
 ```
 
 ### View Tracking
@@ -64,10 +68,10 @@ Quanta assigns each user a unique ID on their first visit. You can access or set
 
 ```js
 // Get the current user ID
-const userId = window.quanta.getId();
+const userId = Quanta.getId();
 
 // Set a custom user ID
-window.quanta.setId("user-123");
+Quanta.setId("user-123");
 ```
 
 ## Configuration
@@ -90,75 +94,6 @@ Available attributes:
 | `data-skip-navigation-view-events` | Skip tracking navigation events after the first page view |
 | `data-skip-all-view-events`        | Disable all automatic page view tracking                  |
 | `data-enable-debug-logs`           | Enable debug logging to the console                       |
-
-<!-- ## A/B Testing
-
-Quanta.js includes built-in support for A/B testing:
-
-```js
-// Get the variant (A, B, C, etc.) for a specific experiment
-const variant = window.quanta.abTest("pricing_experiment");
-
-if (variant === "A") {
-  // Show variant A
-} else if (variant === "B") {
-  // Show variant B
-}
-
-// Track an event with the experiment information
-window.quanta.log("checkout", { pricing_variant: variant });
-``` -->
-
-## API Reference
-
-<!--
-### Core Methods
-
-#### `Quanta.initialize()`
-
-Initialize the Quanta SDK. This is called automatically when using the script tag.
-
-#### `Quanta.log(event, addedArguments?)`
-
-Track an event with optional parameters.
-
-- `event`: String - The name of the event (max 200 chars)
-- `addedArguments`: Object or String - Additional event parameters
-
-#### `Quanta.logWithRevenue(event, revenue, addedArguments?)`
-
-Track an event with revenue and optional parameters.
-
-- `event`: String - The name of the event
-- `revenue`: Number - The revenue amount
-- `addedArguments`: Object or String - Additional event parameters
-
-#### `Quanta.getId()`
-
-Get the current user ID.
-
-#### `Quanta.setId(id)`
-
-Set a custom user ID.
-
-- `id`: String - The custom user ID to set
-
-#### `Quanta.abTest(experimentName)`
-
-Get the variant for an A/B test experiment.
-
-- `experimentName`: String - The name of the experiment
-- Returns: String - The variant (A, B, C, etc.)
-
-### Debug Methods
-
-#### `Quanta.enableLogging()`
-
-Enable debug logging to the console.
-
-#### `Quanta.disableLogging()`
-
-Disable debug logging to the console. -->
 
 ## Browser Compatibility
 

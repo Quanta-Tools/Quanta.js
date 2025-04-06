@@ -1,12 +1,5 @@
-import { installFetchPolyfill } from "./polyfill";
-
 const RECORD_SEPARATOR = "\u001E";
 const UNIT_SEPARATOR = "\u001F";
-
-// Install fetch polyfill early
-if (typeof window !== "undefined") {
-  installFetchPolyfill();
-}
 
 function fullPath(url: Location) {
   return url.href.slice(url.origin.length);
@@ -789,16 +782,5 @@ interface ABExperiment {
   variants: number[];
 }
 
-// Auto-initialize when loaded via script tag
-if (typeof window !== "undefined") {
-  // if script tag loaded, initialize
-  Quanta.initialize();
-
-  // if script tag not loaded, wait
-  window.addEventListener("DOMContentLoaded", () => {
-    Quanta.initialize();
-  });
-}
-
-// Export the Quanta namespace
+export { Quanta };
 export default Quanta;

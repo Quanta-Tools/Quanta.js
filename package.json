@@ -1,13 +1,45 @@
 {
-  "name": "quanta.js",
-  "version": "${version}",
+  "name": "quanta.tools",
+  "version": "0.0.2",
+  "description": "Quanta.js library",
   "type": "module",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "node build.js"
+    "build:web": "rollup -c; node post-build.js",
+    "build": "rollup -c",
+    "types": "tsc --emitDeclarationOnly --outDir dist"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/quanta.esm.js",
+      "require": "./dist/quanta.cjs.js",
+      "browser": "./dist/quanta.min.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "keywords": [
+    "analytics",
+    "telemetry",
+    "quanta"
+  ],
+  "author": "Quanta Tools (https://quanta.tools/)",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
-    "esbuild": "^0.25.2",
-    "fs-extra": "^11.1.1"
+    "@rollup/plugin-commonjs": "^28.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^4.39.0",
+    "rollup-plugin-typescript2": "^0.36.0",
+    "typescript": "^5.8.3",
+    "fs-extra": "^11.3.0"
   },
   "packageManager": "pnpm@10.6.2+sha512.47870716bea1572b53df34ad8647b42962bc790ce2bf4562ba0f643237d7302a3d6a8ecef9e4bdfc01d23af1969aa90485d4cebb0b9638fa5ef1daef656f6c1b"
 }
