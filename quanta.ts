@@ -32,11 +32,11 @@ class Quanta {
     this._appId = this.getAppIdFromScriptTag();
 
     if (!this._appId) {
-      console.warn("No Quanta app ID provided. Analytics will not be sent.");
+      this.debugWarn("No Quanta app ID provided. Analytics will not be sent.");
       return;
     }
 
-    console.log("Quanta initialized");
+    this.debugLog("Quanta initialized");
     this._initialized = true;
 
     // Load or generate user ID
@@ -81,14 +81,14 @@ class Quanta {
         }
       }
     } catch (e) {
-      console.error("Failed to extract Quanta app ID from script tag:", e);
+      this.debugError("Failed to extract Quanta app ID from script tag:", e);
       return "";
     }
 
-    console.error(
+    this.debugError(
       "Failed to extract Quanta app ID from script tag. Please make sure the script tag is loaded correctly:"
     );
-    console.error(
+    this.debugError(
       `<script src="https://js.quanta.tools/app/{appId}.js"></script>`
     );
 
@@ -120,7 +120,7 @@ class Quanta {
     }
 
     if (event.length > 200) {
-      console.warn(
+      this.debugWarn(
         "Event name is too long. Event name + args should be 200 characters or less. It will be truncated."
       );
       event = event.substring(0, 200);
@@ -144,7 +144,7 @@ class Quanta {
 
     // Check if event + args exceeds length limit
     if (event.length + argString.length > 200) {
-      console.warn(
+      this.debugWarn(
         "Added arguments are too long. Event name + args should be 200 characters or less. They will be truncated."
       );
       argString = argString.substring(0, 200 - event.length);
@@ -187,7 +187,7 @@ class Quanta {
       } else {
         this._id = id;
         if (this._id.length !== 22) {
-          console.warn(
+          this.debugWarn(
             `The ID ${this._id} does not look like a valid UUID or Quanta ID. Only use UUIDs or shortened Quanta IDs as user IDs.`
           );
         }
@@ -251,15 +251,15 @@ class Quanta {
     // Basic detection of device type for web
     const ua = navigator.userAgent;
     if (/iPad|iPhone|iPod/.test(ua)) {
-      return "iOS-Web";
+      return "iOS Web";
     } else if (/Android/.test(ua)) {
-      return "Android-Web";
+      return "Android Web";
     } else if (/Windows/.test(ua)) {
-      return "Windows-Web";
+      return "Windows Web";
     } else if (/Mac/.test(ua)) {
-      return "Mac-Web";
+      return "Mac Web";
     } else if (/Linux/.test(ua)) {
-      return "Linux-Web";
+      return "Linux Web";
     }
     return "Web";
   }
@@ -320,7 +320,7 @@ class Quanta {
   private static stringForDouble(value: number): string {
     // Handle upper bound
     if (value > 999999.99) {
-      console.warn(
+      this.debugWarn(
         "Value exceeds maximum allowed revenue of 999,999.99. Will be capped."
       );
       return this.stringForDouble(999999.99);
@@ -328,7 +328,7 @@ class Quanta {
 
     // Handle lower bound
     if (value < -999999.99) {
-      console.warn(
+      this.debugWarn(
         "Value is below minimum allowed revenue of -999,999.99. Will be capped."
       );
       return this.stringForDouble(-999999.99);
@@ -434,7 +434,7 @@ class Quanta {
       }
       return false;
     } catch (error) {
-      console.error("Failed to send event:", error);
+      this.debugError("Failed to send event:", error);
       return false;
     }
   }
@@ -446,7 +446,7 @@ class Quanta {
         JSON.stringify(this._queue)
       );
     } catch (e) {
-      console.warn("Failed to save queue to localStorage:", e);
+      this.debugWarn("Failed to save queue to localStorage:", e);
     }
   }
 
@@ -461,7 +461,7 @@ class Quanta {
         }));
       }
     } catch (e) {
-      console.warn("Failed to load queue from localStorage:", e);
+      this.debugWarn("Failed to load queue from localStorage:", e);
     }
   }
 
@@ -493,7 +493,7 @@ class Quanta {
 
       return abLetters;
     } catch (e) {
-      console.warn("Failed to parse AB test JSON:", e);
+      this.debugWarn("Failed to parse AB test JSON:", e);
       return "";
     }
   }
@@ -517,7 +517,7 @@ class Quanta {
 
       return dict;
     } catch (e) {
-      console.warn("Failed to parse AB test JSON:", e);
+      this.debugWarn("Failed to parse AB test JSON:", e);
       return dict;
     }
   }
@@ -564,6 +564,40 @@ class Quanta {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return pattern.test(str);
   }
+
+  private static shouldLog(): boolean {
+    if (this.loggingEnabled === null) {
+      return this.isDebug();
+    }
+    return this.loggingEnabled;
+  }
+
+  private static loggingEnabled: boolean | null = null;
+  public static enableLogging(): void {
+    this.loggingEnabled = true;
+  }
+  public static disableLogging(): void {
+    this.loggingEnabled = false;
+  }
+
+  // Helper methods for debug-only logging
+  private static debugLog(message: string, ...args: any[]): void {
+    if (this.shouldLog()) {
+      console.log(message, ...args);
+    }
+  }
+
+  private static debugWarn(message: string, ...args: any[]): void {
+    if (this.shouldLog()) {
+      console.warn(message, ...args);
+    }
+  }
+
+  private static debugError(message: string, ...args: any[]): void {
+    if (this.shouldLog()) {
+      console.error(message, ...args);
+    }
+  }
 }
 
 // Type definitions
@@ -585,8 +619,10 @@ interface ABExperiment {
 
 // Auto-initialize when loaded via script tag
 if (typeof window !== "undefined") {
+  console.log("added event listener");
   // Use setTimeout to ensure the DOM is ready and all script tags are available
   window.addEventListener("DOMContentLoaded", () => {
+    console.log("triggered event listener");
     Quanta.initialize();
   });
 }
