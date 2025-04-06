@@ -1,6 +1,6 @@
 {
   "name": "quanta.tools",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Quanta.js library",
   "type": "module",
   "main": "dist/index.cjs.js",
@@ -12,7 +12,8 @@
   "scripts": {
     "build:web": "rollup -c; node post-build.js",
     "build": "rollup -c",
-    "types": "tsc --emitDeclarationOnly --outDir dist"
+    "types": "tsc --emitDeclarationOnly --outDir dist",
+    "prepare": "pnpm build"
   },
   "exports": {
     ".": {
