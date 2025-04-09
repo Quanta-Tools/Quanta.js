@@ -11,7 +11,8 @@
     "moduleResolution": "node",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "importHelpers": true
+    "importHelpers": true,
+    "downlevelIteration": true
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

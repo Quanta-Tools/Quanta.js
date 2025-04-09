@@ -1,7 +1,7 @@
 const RECORD_SEPARATOR = "\u001E";
 const UNIT_SEPARATOR = "\u001F";
 
-function fullPath(url: Location) {
+function fullPath(url: Location | URL) {
   return url.href.slice(url.origin.length);
 }
 
@@ -77,7 +77,7 @@ class Quanta {
     }
 
     // Send launch event
-    this.sendViewEvent();
+    this.maybeSendViewEvent();
   }
 
   /**
@@ -114,15 +114,11 @@ class Quanta {
     if (newPath !== this._currentPath) {
       this._currentPath = newPath;
       this._isFirstViewEvent = false; // First view is only the initial page load
-      this.sendViewEvent();
+      this.maybeSendViewEvent();
     }
   }
 
-  /**
-   * Send a view event to Quanta
-   * @param viewName Name of the view
-   */
-  static sendViewEvent(): void {
+  static maybeSendViewEvent(): void {
     if (!this._initialized) {
       this.initialize();
     }
@@ -141,24 +137,48 @@ class Quanta {
       return;
     }
 
-    const path = fullPath(window.location).slice(
-      0,
-      200 - "view".length - "referrer".length - 1 // 1 unit separator
-    );
-    const referrer = document.referrer;
-    const props: Record<string, string> = { path };
-    if (referrer) {
-      props.referrer = referrer;
-      props.path = props.path.slice(
-        0,
-        200 -
-          referrer.length -
-          "view".length -
-          "path".length -
-          "referrer".length -
-          3 // 3 unit separators
-      );
+    this.sendViewEvent();
+  }
+
+  /**
+   * Send a view event to Quanta
+   * @param viewName Name of the view
+   */
+  static sendViewEvent(): void {
+    // Parse URL to extract and remove UTM parameters
+    const url = new URL(window.location.href);
+    const urlSearchParams = url.searchParams;
+    const utmParams: Record<string, string> = {};
+
+    // Extract UTM parameters
+    for (const [key, value] of urlSearchParams.entries()) {
+      if (key.startsWith("utm_")) {
+        utmParams[key.replace(/^utm_/, "")] = value;
+        urlSearchParams.delete(key);
+      }
     }
+
+    // Reconstruct clean URL without UTM parameters
+    url.search = urlSearchParams.toString();
+    const path = fullPath(url);
+
+    // Initialize props with path and UTM parameters
+    const props: Record<string, string> = { path, ...utmParams };
+
+    if (document.referrer) props.referrer = document.referrer;
+
+    // Calculate how much space all properties take
+    let totalLength = "view".length; // Event name
+    let separatorCount = -1;
+
+    // Add all properties except path
+    for (const [key, value] of Object.entries(props)) {
+      totalLength += key.length + value.length;
+      separatorCount += 2; // Two separators per key-value pair
+    }
+
+    props.path = props.path.slice(0, 200 - totalLength - separatorCount);
+
     this.log("view", props);
   }
 
