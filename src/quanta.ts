@@ -10,6 +10,8 @@ function fullPath(url: Location | URL) {
  */
 class Quanta {
   private static _initialized = false;
+  private static _initializing = 0;
+  private static _initializingPromise: Promise<void> | null = null;
   private static _id = "";
   private static _appId = "";
   private static _abLetters = "";
@@ -22,43 +24,88 @@ class Quanta {
   private static _skipNavigationViewEvents = false;
   private static _skipAllViewEvents = false;
   private static _isFirstViewEvent = true;
-  private static _currentPath = "";
+  private static _currentPath = null as string | null;
+
+  /// override in expo
+  static makeAsyncStorage() {
+    return {
+      getItem: async (key: string) => {
+        return localStorage.getItem(key);
+      },
+      setItem: async (key: string, value: string) => {
+        return localStorage.setItem(key, value);
+      },
+    };
+  }
+
+  static asyncStorage = this.makeAsyncStorage();
 
   /**
    * Initialize the Quanta SDK
    * @param appId Your Quanta application ID (optional if loaded via script tag)
    */
-  static initialize(appId?: string): void {
-    if (this._initialized) return;
-    if (typeof window === "undefined") {
+  static initialize(appId?: string) {
+    this.initializeAsync(appId).catch(console.error);
+  }
+
+  static async loadAppId() {
+    return await this.asyncStorage.getItem("tools.quanta.appId");
+  }
+
+  static async setAppId(appId: string) {
+    return await this.asyncStorage.setItem("tools.quanta.appId", appId);
+  }
+
+  /**
+   * Initialize the Quanta SDK
+   * @param appId Your Quanta application ID (optional if loaded via script tag)
+   */
+  static async initializeAsync(appId?: string) {
+    if (this._initialized) {
+      if (appId) {
+        this._appId = appId;
+        await this.setAppId(appId);
+      }
+      return;
+    }
+
+    if (this._initializing++ !== 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 10));
+      if (this._initializingPromise) {
+        await this._initializingPromise;
+      }
+      return;
+    }
+
+    let resolvePromise = () => {};
+    this._initializingPromise = new Promise<void>((resolve) => {
+      resolvePromise = resolve;
+    });
+
+    if (this.isServerSide()) {
       console.log("[Quanta] Skipping client sdk call on server.");
       return;
     }
-    if (this.getScriptTag() === null) return;
 
     // Parse any data attributes on the script tag
     this.parseScriptTagAttributes();
 
     // Auto-detect app ID from script tag if not provided
-    this._appId = appId === undefined ? this.getAppIdFromScriptTag() : appId;
+    this._appId =
+      appId ?? this.getAppIdFromScriptTag() ?? (await this.loadAppId()) ?? "";
 
     if (!this._appId) {
       this.debugWarn("No Quanta app ID provided. Analytics will not be sent.");
       return;
     }
-
-    this.debugLog("Quanta initialized");
-    this._initialized = true;
-
-    // Track current path
-    this._currentPath = fullPath(window.location);
+    await this.setAppId(this._appId);
 
     // Load or generate user ID
-    this._id = this.loadOrCreateId();
-    this._installDate = this.loadOrCreateInstallDate();
+    this._id = await this.loadOrCreateId();
+    this._installDate = await this.loadOrCreateInstallDate();
 
     // Load AB test settings
-    const abJson = localStorage.getItem("tools.quanta.ab") || "";
+    const abJson = (await this.asyncStorage.getItem("tools.quanta.ab")) || "";
     this._abLetters = this.getAbLetters(abJson);
     this._abDict = this.getAbDict(abJson);
 
@@ -66,29 +113,38 @@ class Quanta {
     this.setupUrlChangeListeners();
 
     // Load any queued events
-    this.loadQueue();
+    await this.loadQueue();
 
     // Process any queued events
-    this.processQueue();
+    await this.processQueue();
 
     // Check if app is claimed (only in debug mode)
     if (this.isDebug()) {
-      this.checkClaimed();
+      this.checkClaimed().catch(console.error);
     }
 
+    this.debugLog("Quanta initialized");
+    this._initialized = true;
+    resolvePromise();
+
     // Send launch event
-    this.maybeSendViewEvent();
+    await this.maybeSendViewEvent();
   }
 
+  /// override in expo
   /**
    * Set up listeners to detect URL changes from both history API and navigation events
    */
-  private static setupUrlChangeListeners(): void {
+  private static setupUrlChangeListeners() {
     if (typeof window === "undefined") return;
+
+    if (this._currentPath === null) {
+      this._currentPath = fullPath(window.location);
+    }
 
     // Listen for popstate event (browser back/forward)
     window.addEventListener("popstate", () => {
-      this.handleUrlChange();
+      this.handleUrlChange().catch(console.error);
     });
 
     // Monitor pushState and replaceState
@@ -97,30 +153,30 @@ class Quanta {
 
     history.pushState = function (...args) {
       originalPushState.apply(this, args);
-      Quanta.handleUrlChange();
+      Quanta.handleUrlChange().catch(console.error);
     };
 
     history.replaceState = function (...args) {
       originalReplaceState.apply(this, args);
-      Quanta.handleUrlChange();
+      Quanta.handleUrlChange().catch(console.error);
     };
   }
 
+  /// override in expo
   /**
    * Handle URL changes by checking if path changed and sending view event
    */
-  private static handleUrlChange(): void {
+  private static async handleUrlChange() {
     const newPath = fullPath(window.location);
-    if (newPath !== this._currentPath) {
-      this._currentPath = newPath;
-      this._isFirstViewEvent = false; // First view is only the initial page load
-      this.maybeSendViewEvent();
-    }
+    if (newPath === this._currentPath) return;
+    this._currentPath = newPath;
+    this._isFirstViewEvent = false; // First view is only the initial page load
+    await this.maybeSendViewEvent();
   }
 
-  static maybeSendViewEvent(): void {
+  static async maybeSendViewEvent() {
     if (!this._initialized) {
-      this.initialize();
+      await this.initializeAsync();
     }
 
     // Skip view events based on configuration
@@ -137,14 +193,19 @@ class Quanta {
       return;
     }
 
-    this.sendViewEvent();
+    await this.sendViewEvent();
   }
 
+  /// override in expo
   /**
    * Send a view event to Quanta
    * @param viewName Name of the view
    */
-  static sendViewEvent(): void {
+  static async sendViewEvent() {
+    if (!this._initialized) {
+      await this.initializeAsync();
+    }
+
     // Parse URL to extract and remove UTM parameters
     const url = new URL(window.location.href);
     const urlSearchParams = url.searchParams;
@@ -179,13 +240,13 @@ class Quanta {
 
     props.path = props.path.slice(0, 200 - totalLength - separatorCount);
 
-    this.log("view", props);
+    await this.logAsync("view", props);
   }
 
   /**
    * Parse data attributes from the script tag
    */
-  private static parseScriptTagAttributes(): void {
+  private static parseScriptTagAttributes() {
     const scriptTag = this.getScriptTag();
     if (!scriptTag) return;
 
@@ -206,6 +267,7 @@ class Quanta {
     }
   }
 
+  /// override in expo
   private static getScriptTag(): HTMLScriptElement | null {
     if (typeof window === "undefined") return null;
 
@@ -218,11 +280,12 @@ class Quanta {
     return null;
   }
 
+  /// override in expo
   /**
    * Extract app ID from the script tag URL
    * Expected format: https://js.quanta.tools/app/{appId}.js
    */
-  private static getAppIdFromScriptTag(): string {
+  private static getAppIdFromScriptTag() {
     try {
       // Find all script tags
       const script = this.getScriptTag();
@@ -249,7 +312,7 @@ class Quanta {
       `<script src="https://js.quanta.tools/app/{appId}.js"></script>`
     );
 
-    return "";
+    return null;
   }
 
   /**
@@ -260,8 +323,20 @@ class Quanta {
   static log(
     event: string,
     addedArguments: Record<string, string> | string = {}
-  ): void {
+  ) {
     this.logWithRevenue(event, 0, addedArguments);
+  }
+
+  /**
+   * Log an event to Quanta
+   * @param event Event name
+   * @param addedArguments Additional event parameters or formatted argument string
+   */
+  static async logAsync(
+    event: string,
+    addedArguments: Record<string, string> | string = {}
+  ) {
+    await this.logWithRevenueAsync(event, 0, addedArguments);
   }
 
   /**
@@ -274,8 +349,29 @@ class Quanta {
     event: string,
     revenue: number = 0,
     addedArguments: Record<string, string> | string = {}
-  ): void {
-    if (typeof window === "undefined") {
+  ) {
+    this.logWithRevenueAsync(event, revenue, addedArguments).catch(
+      console.error
+    );
+  }
+
+  /// override in expo
+  static isServerSide() {
+    return typeof window === "undefined";
+  }
+
+  /**
+   * Log an event with revenue to Quanta
+   * @param event Event name
+   * @param revenue Revenue amount
+   * @param addedArguments Additional event parameters or formatted argument string
+   */
+  static async logWithRevenueAsync(
+    event: string,
+    revenue: number = 0,
+    addedArguments: Record<string, string> | string = {}
+  ) {
+    if (this.isServerSide()) {
       console.log("[Quanta] Skipping client sdk call on server.");
       return;
     }
@@ -325,7 +421,7 @@ class Quanta {
     const userData = this.getUserData();
     const revenueString = this.stringForDouble(revenue);
 
-    this.enqueueEvent({
+    await this.enqueueEvent({
       appId: this._appId,
       userData,
       event: this.safe(event),
@@ -341,9 +437,25 @@ class Quanta {
    * @param experimentName The name of the experiment
    * @returns The variant letter (A, B, C, etc.)
    */
-  static abTest(experimentName: string): string {
+  static abTest(experimentName: string) {
     if (!this._initialized) {
+      console.error(
+        "[Quanta] Ab test called in sync method before initialization. Please make sure to call initialize() first, or use abTestAsync() instead."
+      );
       this.initialize();
+      return "A";
+    }
+    return this._abDict[experimentName.toLowerCase()] || "A";
+  }
+
+  /**
+   * Get the result of an AB test for an experiment
+   * @param experimentName The name of the experiment
+   * @returns The variant letter (A, B, C, etc.)
+   */
+  static async abTestAsync(experimentName: string) {
+    if (!this._initialized) {
+      await this.initializeAsync();
     }
     return this._abDict[experimentName.toLowerCase()] || "A";
   }
@@ -352,19 +464,26 @@ class Quanta {
    * Set the user ID
    * @param id User ID
    */
-  static setId(id: string): void {
-    if (this._id === "") {
-      if (this.isValidUUID(id)) {
-        this._id = this.shortenUuid(id);
-      } else {
-        this._id = id;
-        if (this._id.length !== 22) {
-          this.debugWarn(
-            `The ID ${this._id} does not look like a valid UUID or Quanta ID. Only use UUIDs or shortened Quanta IDs as user IDs.`
-          );
-        }
-      }
-      localStorage.setItem("tools.quanta.id", this._id);
+  static setId(id: string) {
+    this.setIdAsync(id).catch(console.error);
+  }
+
+  /**
+   * Set the user ID
+   * @param id User ID
+   */
+  static async setIdAsync(id: string) {
+    if (this._id !== "") return;
+    let shortId = id;
+    if (this.isValidUUID(shortId)) {
+      shortId = this.shortenUuid(shortId);
+    }
+    this._id = shortId;
+    await this.asyncStorage.setItem("tools.quanta.id", this._id);
+    if (this._id.length !== 22) {
+      this.debugWarn(
+        `The ID ${this._id} does not look like a valid UUID or Quanta ID. Only use UUIDs or shortened Quanta IDs as user IDs.`
+      );
     }
   }
 
@@ -378,37 +497,47 @@ class Quanta {
 
   // Private methods
 
-  private static loadOrCreateId(): string {
-    const storedId = localStorage.getItem("tools.quanta.id");
+  private static async loadOrCreateId() {
+    const storedId = await this.asyncStorage.getItem("tools.quanta.id");
     if (storedId) {
       return storedId;
     }
     const newId = this.shortenUuid(this.generateUuid());
-    localStorage.setItem("tools.quanta.id", newId);
+    await this.asyncStorage.setItem("tools.quanta.id", newId);
     return newId;
   }
 
-  private static loadOrCreateInstallDate(): number {
-    const storedDate = localStorage.getItem("tools.quanta.install");
+  private static async loadOrCreateInstallDate() {
+    const storedDate = await this.asyncStorage.getItem("tools.quanta.install");
     if (storedDate) {
       return parseInt(storedDate, 10);
     }
     const now = Math.floor(Date.now() / 1000);
-    localStorage.setItem("tools.quanta.install", now.toString());
+    await this.asyncStorage.setItem("tools.quanta.install", now.toString());
     return now;
   }
 
-  /// override for expo
+  /// override in expo
   private static systemLanguageProvider(): string {
     return navigator.language;
+  }
+
+  /// override in expo
+  private static getBundleId(): string {
+    return window.location.hostname;
+  }
+
+  /// override in expo
+  private static getVersion(): string {
+    return "1.0.0";
   }
 
   private static getUserData(): string {
     const device = this.getDeviceInfo();
     const os = this.getOSInfoSafe();
-    const bundleId = window.location.hostname;
+    const bundleId = this.getBundleId();
     const debugFlags = this.isDebug() ? 1 : 0;
-    const version = "1.0.0";
+    const version = this.getVersion();
     const language = this.systemLanguageProvider().replace("-", "_");
 
     let userData = "";
@@ -424,7 +553,7 @@ class Quanta {
     return userData;
   }
 
-  /// override for expo
+  /// override in expo
   private static getDeviceInfo(): string {
     // Get user agent string
     const ua = navigator.userAgent;
@@ -477,7 +606,7 @@ class Quanta {
     return "Browser";
   }
 
-  /// override for expo
+  /// override in expo
   private static getOSInfo(): string {
     const ua = navigator.userAgent;
     if (/Windows NT 10/.test(ua)) {
@@ -516,6 +645,7 @@ class Quanta {
     return this.getOSInfo().slice(0, 25);
   }
 
+  /// override in expo
   private static isDebug(): boolean {
     return (
       window.location.hostname === "localhost" ||
@@ -559,12 +689,12 @@ class Quanta {
       : formatted;
   }
 
-  private static enqueueEvent(event: EventTask): void {
+  private static async enqueueEvent(event: EventTask) {
     this._queue.push(event);
-    this.saveQueue();
+    await this.saveQueue();
 
     if (!this._isProcessing) {
-      this.processQueue();
+      await this.processQueue();
     }
   }
 
@@ -591,7 +721,7 @@ class Quanta {
       if (success || failures >= 27 || eventAge > 48) {
         this._queue.shift();
         failures = 0;
-        this.saveQueue();
+        await this.saveQueue();
       } else {
         failures++;
       }
@@ -622,7 +752,9 @@ class Quanta {
         "Content-Type": "text/plain",
       };
 
-      const abVersion = localStorage.getItem("tools.quanta.ab.version");
+      const abVersion = await this.asyncStorage.getItem(
+        "tools.quanta.ab.version"
+      );
       if (abVersion) {
         headers["X-AB-Version"] = abVersion;
       }
@@ -637,13 +769,16 @@ class Quanta {
         try {
           const responseText = await response.text();
           if (responseText) {
-            localStorage.setItem("tools.quanta.ab", responseText);
+            await this.asyncStorage.setItem("tools.quanta.ab", responseText);
             this.setAbJson(responseText);
           }
 
           const abVersionHeader = response.headers.get("X-AB-Version");
           if (abVersionHeader) {
-            localStorage.setItem("tools.quanta.ab.version", abVersionHeader);
+            await this.asyncStorage.setItem(
+              "tools.quanta.ab.version",
+              abVersionHeader
+            );
           }
         } catch (e) {
           // Ignore parsing errors
@@ -657,20 +792,22 @@ class Quanta {
     }
   }
 
-  private static saveQueue(): void {
+  private static async saveQueue() {
     try {
-      localStorage.setItem(
+      await this.asyncStorage.setItem(
         "tools.quanta.queue.tasks",
         JSON.stringify(this._queue)
       );
     } catch (e) {
-      this.debugWarn("Failed to save queue to localStorage:", e);
+      this.debugWarn("Failed to save queue to storage:", e);
     }
   }
 
-  private static loadQueue(): void {
+  private static async loadQueue() {
     try {
-      const queueData = localStorage.getItem("tools.quanta.queue.tasks");
+      const queueData = await this.asyncStorage.getItem(
+        "tools.quanta.queue.tasks"
+      );
       if (queueData) {
         const parsed = JSON.parse(queueData);
         this._queue = parsed.map((item: any) => ({
@@ -679,11 +816,11 @@ class Quanta {
         }));
       }
     } catch (e) {
-      this.debugWarn("Failed to load queue from localStorage:", e);
+      this.debugWarn("Failed to load queue from storage:", e);
     }
   }
 
-  private static setAbJson(abJson: string): void {
+  private static setAbJson(abJson: string) {
     this._abLetters = this.getAbLetters(abJson);
     this._abDict = this.getAbDict(abJson);
   }
@@ -791,24 +928,24 @@ class Quanta {
   }
 
   private static loggingEnabled: boolean | null = null;
-  public static enableLogging(): void {
+  public static enableLogging() {
     this.loggingEnabled = true;
   }
-  public static disableLogging(): void {
+  public static disableLogging() {
     this.loggingEnabled = false;
   }
 
-  private static debugLog(...args: any[]): void {
+  private static debugLog(...args: any[]) {
     if (!this.shouldLog()) return;
     console.log(...args);
   }
 
-  private static debugWarn(...args: any[]): void {
+  private static debugWarn(...args: any[]) {
     if (!this.shouldLog()) return;
     console.warn(...args);
   }
 
-  private static debugError(...args: any[]): void {
+  private static debugError(...args: any[]) {
     if (!this.shouldLog()) return;
     console.error(...args);
   }
