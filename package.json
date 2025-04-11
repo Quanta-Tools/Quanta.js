@@ -13,7 +13,8 @@
     "build:web": "rollup -c; node post-build.js",
     "build": "rollup -c",
     "types": "tsc --emitDeclarationOnly --outDir dist",
-    "prepare": "pnpm build"
+    "prepare": "pnpm build",
+    "test": "ts-node tests/index.ts"
   },
   "exports": {
     ".": {
@@ -36,10 +37,11 @@
     "@rollup/plugin-commonjs": "^28.0.3",
     "@rollup/plugin-node-resolve": "^16.0.1",
     "@rollup/plugin-terser": "^0.4.4",
+    "fs-extra": "^11.3.0",
     "rollup": "^4.39.0",
     "rollup-plugin-typescript2": "^0.36.0",
-    "typescript": "^5.8.3",
-    "fs-extra": "^11.3.0"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   },
   "packageManager": "pnpm@10.6.2+sha512.47870716bea1572b53df34ad8647b42962bc790ce2bf4562ba0f643237d7302a3d6a8ecef9e4bdfc01d23af1969aa90485d4cebb0b9638fa5ef1daef656f6c1b"
 }

@@ -398,13 +398,18 @@ class Quanta {
     return now;
   }
 
+  /// override for expo
+  private static systemLanguageProvider(): string {
+    return navigator.language;
+  }
+
   private static getUserData(): string {
     const device = this.getDeviceInfo();
-    const os = this.getOSInfo();
+    const os = this.getOSInfoSafe();
     const bundleId = window.location.hostname;
     const debugFlags = this.isDebug() ? 1 : 0;
     const version = "1.0.0";
-    const language = navigator.language.replace("-", "_");
+    const language = this.systemLanguageProvider().replace("-", "_");
 
     let userData = "";
     userData += `${this._id}`;
@@ -419,23 +424,60 @@ class Quanta {
     return userData;
   }
 
+  /// override for expo
   private static getDeviceInfo(): string {
-    // Basic detection of device type for web
+    // Get user agent string
     const ua = navigator.userAgent;
-    if (/iPad|iPhone|iPod/.test(ua)) {
-      return "iOS Web";
-    } else if (/Android/.test(ua)) {
-      return "Android Web";
-    } else if (/Windows/.test(ua)) {
-      return "Windows Web";
-    } else if (/Mac/.test(ua)) {
-      return "Mac Web";
-    } else if (/Linux/.test(ua)) {
-      return "Linux Web";
-    }
-    return "Web";
+
+    // Check for browsers in specific order (most specific first)
+    // Some browsers include strings like "Chrome" or "Safari" in their UA
+
+    // Chromium-based browsers - check these before Chrome
+    if (/Edg\//.test(ua)) return "Edge";
+    if (/OPR\/|Opera\/|Opera Mini\//.test(ua)) return "Opera";
+    if (/Vivaldi\//.test(ua)) return "Vivaldi";
+    if (/YaBrowser\//.test(ua)) return "Yandex";
+    if (
+      /Brave\//.test(ua) ||
+      (/Chrome/.test(ua) && (navigator as any).brave?.isBrave)
+    )
+      return "Brave";
+    if (/SamsungBrowser\//.test(ua)) return "Samsung Browser";
+    if (/UCWEB\/|UCBrowser\//.test(ua)) return "UC Browser";
+    if (/QQBrowser\//.test(ua)) return "QQ Browser";
+    if (/Maxthon\//.test(ua)) return "Maxthon";
+    if (/DuckDuckGo\//.test(ua)) return "DuckDuckGo";
+    if (/Whale\//.test(ua)) return "Whale";
+    if (/Puffin\//.test(ua)) return "Puffin";
+
+    // Major browsers
+    if (/Firefox\//.test(ua)) return "Firefox";
+    if (/Chrome\//.test(ua) && !/Chromium\//.test(ua)) return "Chrome";
+    if (/Chromium\//.test(ua)) return "Chromium";
+
+    // Safari needs to be after Chrome since many browsers include Safari in UA
+    if (/Safari\//.test(ua) && !/Chrome\//.test(ua) && !/Chromium\//.test(ua))
+      return "Safari";
+
+    // Internet Explorer
+    if (/MSIE|Trident\//.test(ua)) return "Internet Explorer";
+
+    // Less common browsers
+    if (/SeaMonkey\//.test(ua)) return "SeaMonkey";
+    if (/Thunderbird\//.test(ua)) return "Thunderbird";
+    if (/AOLShield\//.test(ua)) return "AOL Shield";
+    if (/Coast\//.test(ua)) return "Coast";
+    if (/Focus\//.test(ua)) return "Focus";
+    if (/Klar\//.test(ua)) return "Klar";
+    if (/Falkon\//.test(ua)) return "Falkon";
+    if (/Konqueror\//.test(ua)) return "Konqueror";
+    if (/Kindle\//.test(ua)) return "Kindle";
+
+    // Default case
+    return "Browser";
   }
 
+  /// override for expo
   private static getOSInfo(): string {
     const ua = navigator.userAgent;
     if (/Windows NT 10/.test(ua)) {
@@ -468,6 +510,10 @@ class Quanta {
       return "Linux";
     }
     return "Unknown";
+  }
+
+  private static getOSInfoSafe(): string {
+    return this.getOSInfo().slice(0, 25);
   }
 
   private static isDebug(): boolean {
