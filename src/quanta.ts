@@ -26,8 +26,7 @@ class Quanta {
   private static _isFirstViewEvent = true;
   private static _currentPath = null as string | null;
 
-  /// override in expo
-  static makeAsyncStorage() {
+  protected static makeAsyncStorage() {
     return {
       getItem: async (key: string) => {
         return localStorage.getItem(key);
@@ -131,11 +130,10 @@ class Quanta {
     await this.maybeSendViewEvent();
   }
 
-  /// override in expo
   /**
    * Set up listeners to detect URL changes from both history API and navigation events
    */
-  private static setupUrlChangeListeners() {
+  protected static setupUrlChangeListeners() {
     if (typeof window === "undefined") return;
 
     if (this._currentPath === null) {
@@ -162,11 +160,10 @@ class Quanta {
     };
   }
 
-  /// override in expo
   /**
    * Handle URL changes by checking if path changed and sending view event
    */
-  private static async handleUrlChange() {
+  protected static async handleUrlChange() {
     const newPath = fullPath(window.location);
     if (newPath === this._currentPath) return;
     this._currentPath = newPath;
@@ -196,12 +193,10 @@ class Quanta {
     await this.sendViewEvent();
   }
 
-  /// override in expo
   /**
    * Send a view event to Quanta
-   * @param viewName Name of the view
    */
-  static async sendViewEvent() {
+  public static async sendViewEvent() {
     if (!this._initialized) {
       await this.initializeAsync();
     }
@@ -267,8 +262,7 @@ class Quanta {
     }
   }
 
-  /// override in expo
-  private static getScriptTag(): HTMLScriptElement | null {
+  protected static getScriptTag(): HTMLScriptElement | null {
     if (typeof window === "undefined") return null;
 
     const scripts = document.getElementsByTagName("script");
@@ -280,12 +274,11 @@ class Quanta {
     return null;
   }
 
-  /// override in expo
   /**
    * Extract app ID from the script tag URL
    * Expected format: https://js.quanta.tools/app/{appId}.js
    */
-  private static getAppIdFromScriptTag() {
+  protected static getAppIdFromScriptTag() {
     try {
       // Find all script tags
       const script = this.getScriptTag();
@@ -356,7 +349,7 @@ class Quanta {
   }
 
   /// override in expo
-  static isServerSide() {
+  protected static isServerSide() {
     return typeof window === "undefined";
   }
 
@@ -518,17 +511,17 @@ class Quanta {
   }
 
   /// override in expo
-  private static systemLanguageProvider(): string {
+  protected static systemLanguageProvider(): string {
     return navigator.language;
   }
 
   /// override in expo
-  private static getBundleId(): string {
+  protected static getBundleId(): string {
     return window.location.hostname;
   }
 
   /// override in expo
-  private static getVersion(): string {
+  protected static getVersion(): string {
     return "1.0.0";
   }
 
@@ -554,7 +547,7 @@ class Quanta {
   }
 
   /// override in expo
-  private static getDeviceInfo(): string {
+  protected static getDeviceInfo(): string {
     // Get user agent string
     const ua = navigator.userAgent;
 
@@ -607,7 +600,7 @@ class Quanta {
   }
 
   /// override in expo
-  private static getOSInfo(): string {
+  protected static getOSInfo(): string {
     const ua = navigator.userAgent;
     if (/Windows NT 10/.test(ua)) {
       return "Windows10";
@@ -646,7 +639,7 @@ class Quanta {
   }
 
   /// override in expo
-  private static isDebug(): boolean {
+  protected static isDebug(): boolean {
     return (
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1"
