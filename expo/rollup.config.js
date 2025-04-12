@@ -28,6 +28,7 @@ export default [
       "expo-localization",
       "expo-secure-store",
       "react-native",
+      "react-dom",
       "react",
     ],
     plugins: [
