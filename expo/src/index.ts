@@ -7,6 +7,7 @@ import Device from "expo-device";
 import Constants from "expo-constants";
 import Localization from "expo-localization";
 import Application from "expo-application";
+export { useScreenTracking } from "./useScreenTracking";
 
 export class Quanta extends QuantaBase {
   protected static makeAsyncStorage() {
