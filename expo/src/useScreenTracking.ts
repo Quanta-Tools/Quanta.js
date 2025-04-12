@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import SecureStore from "expo-secure-store";
 import Device from "expo-device";
-import Constants from "expo-constants";
 import Localization from "expo-localization";
 import Application from "expo-application";
 import { AppState, AppStateStatus, Platform } from "react-native";

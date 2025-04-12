@@ -37,7 +37,7 @@ class Quanta {
     };
   }
 
-  static asyncStorage = this.makeAsyncStorage();
+  public static asyncStorage = this.makeAsyncStorage();
 
   /**
    * Initialize the Quanta SDK
@@ -82,7 +82,7 @@ class Quanta {
     });
 
     if (this.isServerSide()) {
-      console.log("[Quanta] Skipping client sdk call on server.");
+      console.info("[Quanta] Skipping client sdk call on server.");
       return;
     }
 
@@ -365,7 +365,7 @@ class Quanta {
     addedArguments: Record<string, string> | string = {}
   ) {
     if (this.isServerSide()) {
-      console.log("[Quanta] Skipping client sdk call on server.");
+      console.info("[Quanta] Skipping client sdk call on server.");
       return;
     }
     if (!this._initialized) {
@@ -930,7 +930,7 @@ class Quanta {
 
   private static debugLog(...args: any[]) {
     if (!this.shouldLog()) return;
-    console.log(...args);
+    console.info(...args);
   }
 
   private static debugWarn(...args: any[]) {
@@ -959,7 +959,7 @@ class Quanta {
       if (!data.unClaimed) return;
 
       // App is unclaimed, show welcome message
-      console.log(
+      console.info(
         `%c
        :@@@               +@@+    @@@             
       @@  @:             @@  @   @  @@            
@@ -972,14 +972,14 @@ class Quanta {
 `,
         "font-family:monospace;font-weight:600"
       );
-      console.log("Welcome to Quanta! 🥳");
-      console.log("Your analytics are fully set up.");
-      console.log(
+      console.info("Welcome to Quanta! 🥳");
+      console.info("Your analytics are fully set up.");
+      console.info(
         "See your first events coming in and attach this app to your Quanta account at"
       );
-      console.log(`https://quanta.tools/setup/${this._appId}`);
-      console.log("");
-      console.log(
+      console.info(`https://quanta.tools/setup/${this._appId}`);
+      console.info("");
+      console.info(
         "Once your app is attached to an account, this welcome message won't show up anymore. 🚮"
       );
     } catch {

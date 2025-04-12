@@ -1,4 +1,4 @@
-import SecureStore from "expo-secure-store";
+import Quanta from ".";
 
 // Constants
 const PERSISTENCE_KEY = "tools.quanta.sessions";
@@ -24,7 +24,7 @@ export class SessionStorageService {
   static async persistSessions(sessions: StoredSession[]): Promise<void> {
     try {
       const sessionsJson = JSON.stringify(sessions);
-      await SecureStore.setItemAsync(PERSISTENCE_KEY, sessionsJson);
+      await Quanta.asyncStorage.setItem(PERSISTENCE_KEY, sessionsJson);
     } catch (error) {
       console.error("Failed to persist sessions:", error);
     }
@@ -73,7 +73,7 @@ export class SessionStorageService {
    */
   static async getStoredSessions(): Promise<StoredSession[]> {
     try {
-      const sessionsJson = await SecureStore.getItemAsync(PERSISTENCE_KEY);
+      const sessionsJson = await Quanta.asyncStorage.getItem(PERSISTENCE_KEY);
       if (!sessionsJson) return [];
 
       return JSON.parse(sessionsJson);
@@ -88,7 +88,7 @@ export class SessionStorageService {
    */
   static async clearSessions(): Promise<void> {
     try {
-      await SecureStore.deleteItemAsync(PERSISTENCE_KEY);
+      await Quanta.asyncStorage.setItem(PERSISTENCE_KEY, "[]");
     } catch (error) {
       console.error("Failed to clear sessions:", error);
     }
@@ -140,7 +140,7 @@ export class SessionStorageService {
    */
   static async hasCrashEvidence(): Promise<boolean> {
     try {
-      const sessionsJson = await SecureStore.getItemAsync(PERSISTENCE_KEY);
+      const sessionsJson = await Quanta.asyncStorage.getItem(PERSISTENCE_KEY);
       const sessions = sessionsJson ? JSON.parse(sessionsJson) : [];
       return sessions.length > 0;
     } catch (error) {

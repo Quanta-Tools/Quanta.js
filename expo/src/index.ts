@@ -10,7 +10,7 @@ import Application from "expo-application";
 export { useScreenTracking } from "./useScreenTracking";
 
 export class Quanta extends QuantaBase {
-  protected static makeAsyncStorage() {
+  protected static override makeAsyncStorage() {
     return {
       setItem: async (key: string, value: string) => {
         await SecureStore.setItemAsync(key, value);
@@ -22,34 +22,36 @@ export class Quanta extends QuantaBase {
     };
   }
 
-  protected static setupUrlChangeListeners() {}
-  protected static async handleUrlChange() {}
+  public static override asyncStorage = this.makeAsyncStorage();
+
+  protected static override setupUrlChangeListeners() {}
+  protected static override async handleUrlChange() {}
 
   public static async sendViewEvent() {
     await this.logAsync("launch");
   }
 
-  protected static getScriptTag(): HTMLScriptElement | null {
+  protected static override getScriptTag(): HTMLScriptElement | null {
     return null;
   }
 
-  protected static getAppIdFromScriptTag(): string | null {
+  protected static override getAppIdFromScriptTag(): string | null {
     return null;
   }
 
-  protected static isServerSide() {
+  protected static override isServerSide() {
     return false;
   }
 
-  protected static systemLanguageProvider(): string {
+  protected static override systemLanguageProvider(): string {
     return Localization.getLocales()[0].languageTag;
   }
 
-  protected static getBundleId(): string {
+  protected static override getBundleId(): string {
     return Application.applicationId || "";
   }
 
-  protected static getVersion(): string {
+  protected static override getVersion(): string {
     return (
       Application.nativeApplicationVersion ||
       Constants.expoConfig?.version ||
@@ -57,15 +59,15 @@ export class Quanta extends QuantaBase {
     );
   }
 
-  protected static getDeviceInfo(): string {
+  protected static override getDeviceInfo(): string {
     return Device.modelName || "Expo Device";
   }
 
-  protected static getOSInfo(): string {
+  protected static override getOSInfo(): string {
     return `${Device.osName ?? "Expo"} ${Device.osVersion ?? "?"}`;
   }
 
-  protected static isDebug(): boolean {
+  protected static override isDebug(): boolean {
     return __DEV__ ?? false;
   }
 }
