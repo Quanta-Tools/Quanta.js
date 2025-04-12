@@ -136,6 +136,35 @@ export class SessionStorageService {
   }
 
   /**
+   * Remove a session from storage
+   * @param screenId The ID of the screen session to remove
+   */
+  static async removeSession(screenId: string): Promise<void> {
+    try {
+      // Get the raw JSON string first
+      const sessionsJson = await Quanta.asyncStorage.getItem(PERSISTENCE_KEY);
+      if (!sessionsJson) return; // No sessions to remove
+
+      // Parse the sessions
+      const sessions = JSON.parse(sessionsJson);
+
+      // Filter out the specified session
+      const filteredSessions = sessions.filter(
+        (session: StoredSession) => session.screenId !== screenId
+      );
+
+      // If nothing changed, return early
+      if (filteredSessions.length === sessions.length) return;
+
+      // Save updated sessions
+      const updatedJson = JSON.stringify(filteredSessions);
+      await Quanta.asyncStorage.setItem(PERSISTENCE_KEY, updatedJson);
+    } catch (error) {
+      console.error("Failed to remove session:", error);
+    }
+  }
+
+  /**
    * Detect if we have any stored sessions that may indicate a crash
    */
   static async hasCrashEvidence(): Promise<boolean> {

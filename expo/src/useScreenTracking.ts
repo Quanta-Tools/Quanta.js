@@ -4,6 +4,7 @@ import Localization from "expo-localization";
 import Application from "expo-application";
 import { AppState, AppStateStatus, Platform } from "react-native";
 import { SessionStorageService, StoredSession } from "./sessionStorage";
+import Quanta from ".";
 
 // Types
 interface ScreenSession {
@@ -36,28 +37,42 @@ type AppStateTransition = {
 /**
  * Formats a duration number to a short string representation
  */
-export const shortString = (value: number): string => {
+export function shortString(value: number) {
   if (Math.abs(value) > 9_999) {
     // Use scientific notation for large numbers
-    return value.toExponential(2);
-  } else if (value === 0 || Math.abs(value) < 0.001) {
+
+    // Format to scientific notation with 2 decimal places
+    const str = value.toExponential(2);
+
+    // Replace "e+" or "e-" with just "e" or "-e"
+    return str.replace(/e\+/, "e").replace(/e-/, "e-");
+  } else if (value == 0 || Math.abs(value) < 0.001) {
     // Return "0" for very small values
     return "0";
   } else {
-    // Format with appropriate decimal places
-    const intPart = Math.floor(Math.abs(value));
-    const intLength = intPart.toString().length;
+    // Check if integer part + fraction ≤ 4 digits
+    let intLength = Math.floor(Math.abs(value)).toString().length;
 
-    let decimalPlaces = 2;
+    // If too many digits before the period, round to an integer
     if (intLength >= 4) {
-      decimalPlaces = 0;
-    } else {
-      decimalPlaces = Math.min(4 - intLength, 2);
+      return value
+        .toLocaleString("en-US", {
+          style: "decimal",
+          maximumFractionDigits: 2,
+        })
+        .replace(/,/g, "");
     }
 
-    return value.toFixed(decimalPlaces);
+    // Limit total length to 4 digits
+    let remainingDigits = 4 - intLength;
+    return value
+      .toLocaleString("en-US", {
+        style: "decimal",
+        maximumFractionDigits: Math.min(remainingDigits, 2),
+      })
+      .replace(/,/g, "");
   }
-};
+}
 
 /**
  * Hook for tracking screen view time and analytics
@@ -133,19 +148,27 @@ export const useScreenTracking = () => {
     (screenId: string) => {
       const session = activeSessions[screenId];
       if (!session) return;
+
+      // Remove from active sessions
       setActiveSessions((prev) => {
         const { [screenId]: removed, ...rest } = prev;
         return rest;
       });
+
+      // Calculate duration and log event
       const duration = calculateDuration(session);
-      if (duration >= MINIMUM_TRACKABLE_DURATION) {
-        SessionStorageService.updateSessionDuration(
-          screenId,
-          duration,
-          session.args,
-          session.sessionStartTime
-        );
-      }
+      SessionStorageService.removeSession(screenId);
+      if (duration < MINIMUM_TRACKABLE_DURATION) return;
+
+      // Convert duration from milliseconds to seconds
+      const durationSeconds = duration / 1000;
+
+      // Log the view event with Quanta
+      Quanta.log("view", {
+        screen: screenId,
+        seconds: shortString(durationSeconds),
+        ...session.args,
+      });
     },
     [activeSessions]
   );

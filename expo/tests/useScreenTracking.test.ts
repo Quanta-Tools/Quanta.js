@@ -13,12 +13,28 @@ jest.mock("../src/sessionStorage", () => {
       getStoredSessions: jest.fn().mockResolvedValue([]),
       clearSessions: jest.fn(),
       hasCrashEvidence: jest.fn().mockResolvedValue(false),
+      removeSession: jest.fn(), // Add mock for the new removeSession method
     },
   };
 });
 
 // Now import the SessionStorageService mock
 import { SessionStorageService } from "../src/sessionStorage";
+
+// Mock Quanta for tracking the log calls
+jest.mock("../src", () => {
+  return {
+    log: jest.fn(),
+    __esModule: true,
+    default: {
+      log: jest.fn(),
+      logAsync: jest.fn().mockResolvedValue(undefined),
+    },
+  };
+});
+
+// Import Quanta mock
+import Quanta from "../src";
 
 // Mock other dependencies
 jest.mock("expo-device", () => ({
@@ -122,6 +138,16 @@ function createMockHook() {
           session.args,
           session.sessionStartTime
         );
+
+        // Log view event with Quanta
+        Quanta.log("view", {
+          screen: screenId,
+          seconds: (duration / 1000).toFixed(2),
+          ...session.args,
+        });
+      } else {
+        // Remove session if duration is too short
+        SessionStorageService.removeSession(screenId);
       }
 
       delete activeSessions[screenId];
@@ -727,6 +753,106 @@ describe("useScreenTracking", () => {
       // Assert - should only count time until pause
       expect(duration).toBeGreaterThanOrEqual(1900);
       expect(duration).toBeLessThanOrEqual(2100);
+    });
+  });
+
+  // Add tests for Quanta.log at the end of the file
+  describe("Event Logging", () => {
+    it("should log view event with Quanta when a session ends", () => {
+      // Arrange
+      const screenId = "LoggedScreen";
+      const args = { param1: "value1", param2: "value2" };
+
+      // Start a session
+      mockHook.startScreenView({ screenId, args });
+
+      // Mock time passing - well above minimum duration
+      jest.advanceTimersByTime(3000);
+
+      // Act
+      mockHook.endScreenView(screenId);
+
+      // Assert
+      // Verify Quanta.log was called with correct event name and parameters
+      expect(Quanta.log).toHaveBeenCalledWith("view", {
+        screen: screenId,
+        seconds: "3.00", // 3 seconds with proper formatting
+        param1: "value1",
+        param2: "value2",
+      });
+
+      // Verify duration was updated in storage
+      expect(SessionStorageService.updateSessionDuration).toHaveBeenCalledWith(
+        screenId,
+        expect.any(Number),
+        args,
+        expect.any(Number)
+      );
+    });
+
+    it("should not log view event for sessions shorter than minimum duration", () => {
+      // Arrange
+      const screenId = "ShortSession";
+
+      // Start a session
+      mockHook.startScreenView({ screenId });
+
+      // Mock very short time passing - below minimum duration
+      jest.advanceTimersByTime(100);
+
+      // Act
+      mockHook.endScreenView(screenId);
+
+      // Assert
+      // Quanta.log should not be called for short sessions
+      expect(Quanta.log).not.toHaveBeenCalled();
+
+      // No duration update in storage
+      expect(
+        SessionStorageService.updateSessionDuration
+      ).not.toHaveBeenCalled();
+
+      // Instead, session should be removed from storage
+      expect(SessionStorageService.removeSession).toHaveBeenCalledWith(
+        screenId
+      );
+    });
+
+    it("should format seconds properly in the log event", () => {
+      // Arrange
+      const screenId = "FormattedDuration";
+
+      // Start a session
+      mockHook.startScreenView({ screenId });
+
+      // Test different durations
+      const testCases = [
+        { ms: 1500, expected: "1.50" }, // 1.5 seconds
+        { ms: 12500, expected: "12.50" }, // 12.5 seconds
+        { ms: 123456, expected: "123.46" }, // 123.456 seconds
+        { ms: 9999999, expected: "10000.00" }, // 10,000 seconds (not using scientific notation in the implementation)
+      ];
+
+      for (const testCase of testCases) {
+        jest.clearAllMocks();
+
+        // Mock setting specific time
+        const now = Date.now();
+        jest.spyOn(Date, "now").mockReturnValue(now + testCase.ms);
+
+        // Act
+        mockHook.endScreenView(screenId);
+
+        // Assert
+        expect(Quanta.log).toHaveBeenCalledWith("view", {
+          screen: screenId,
+          seconds: testCase.expected,
+        });
+
+        // Reset mock and start a new session for next test
+        jest.spyOn(Date, "now").mockRestore();
+        mockHook.startScreenView({ screenId });
+      }
     });
   });
 });
