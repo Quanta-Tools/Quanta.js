@@ -34,3 +34,5 @@ npm-debug.log*
 next-env.d.ts
 
 dist/
+
+.npm.token

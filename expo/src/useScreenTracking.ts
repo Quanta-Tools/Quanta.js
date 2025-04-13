@@ -4,7 +4,7 @@ import Localization from "expo-localization";
 import Application from "expo-application";
 import { AppState, AppStateStatus, Platform } from "react-native";
 import { SessionStorageService, StoredSession } from "./sessionStorage";
-import Quanta from ".";
+import { Quanta } from "./quanta";
 
 // Types
 interface ScreenSession {
@@ -23,6 +23,7 @@ interface ScreenViewOptions {
 }
 
 // Constants
+const PERSISTENCE_KEY_ACTIVE_SESSIONS = "tools.quanta.active_sessions";
 const PERSISTENCE_INTERVAL = 10000; // 10 seconds
 const MINIMUM_TRACKABLE_DURATION = 500; // 0.5 seconds
 const MAX_RESTORE_SESSION_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
@@ -92,6 +93,7 @@ export const useScreenTracking = () => {
   const isFirstLoadRef = useRef<boolean>(true);
   const restoredSessionsRef = useRef<StoredSession[]>([]);
   const appStartTimeRef = useRef<number>(Date.now());
+  const initializedRef = useRef<boolean>(false);
 
   /**
    * Determine if we're on iOS
@@ -99,45 +101,140 @@ export const useScreenTracking = () => {
   const isIOS = Platform.OS === "ios";
 
   /**
+   * Save active sessions to persistent storage to survive remounts
+   */
+  const saveActiveSessionsToStorage = useCallback(async () => {
+    try {
+      await Quanta.asyncStorage.setItem(
+        PERSISTENCE_KEY_ACTIVE_SESSIONS,
+        JSON.stringify(activeSessions)
+      );
+      console.log(
+        `[ScreenTracker] Saved ${
+          Object.keys(activeSessions).length
+        } active sessions to storage`
+      );
+    } catch (error) {
+      console.error("[ScreenTracker] Failed to save active sessions:", error);
+    }
+  }, [activeSessions]);
+
+  /**
+   * Load active sessions from persistent storage on initialization
+   */
+  const loadActiveSessionsFromStorage = useCallback(async () => {
+    try {
+      const sessionsJson = await Quanta.asyncStorage.getItem(
+        PERSISTENCE_KEY_ACTIVE_SESSIONS
+      );
+      if (sessionsJson) {
+        const loadedSessions = JSON.parse(sessionsJson);
+        console.log(
+          `[ScreenTracker] Loaded ${
+            Object.keys(loadedSessions).length
+          } active sessions from storage`
+        );
+
+        // Update the createdSessionsRef with loaded session IDs
+        Object.keys(loadedSessions).forEach((id) =>
+          createdSessionsRef.current.add(id)
+        );
+
+        setActiveSessions(loadedSessions);
+        return loadedSessions;
+      }
+      return {};
+    } catch (error) {
+      console.error("[ScreenTracker] Failed to load active sessions:", error);
+      return {};
+    }
+  }, []);
+
+  /**
+   * Initialize component and load saved sessions
+   */
+  useEffect(() => {
+    if (!initializedRef.current) {
+      console.log("[ScreenTracker] Initializing and loading active sessions");
+      initializedRef.current = true;
+      loadActiveSessionsFromStorage().catch((err) => {
+        console.error("[ScreenTracker] Error loading active sessions:", err);
+      });
+    }
+  }, [loadActiveSessionsFromStorage]);
+
+  /**
    * Start tracking a screen view
    */
   const startScreenView = useCallback((options: ScreenViewOptions = {}) => {
     const { screenId = "Unknown", args } = options;
     const now = Date.now();
+
+    console.log(`[ScreenTracker] Starting screen view for "${screenId}"`, {
+      timestamp: new Date(now).toISOString(),
+      args: args || {},
+    });
+
     // If this session has not been created, mark it and persist immediately.
     if (!createdSessionsRef.current.has(screenId)) {
+      console.log(
+        `[ScreenTracker] First time seeing session "${screenId}", persisting initial state`
+      );
       createdSessionsRef.current.add(screenId);
       SessionStorageService.persistSessionWithEstimatedDuration(
         screenId,
         args,
         now
       );
+    } else {
+      console.log(
+        `[ScreenTracker] Session "${screenId}" already exists in created sessions`
+      );
     }
+
     setActiveSessions((prev) => {
-      if (prev[screenId]) {
-        return {
-          ...prev,
-          [screenId]: {
-            ...prev[screenId],
-            args: {
-              ...(prev[screenId].args || {}),
-              ...(args || {}),
+      const updated = prev[screenId]
+        ? {
+            ...prev,
+            [screenId]: {
+              ...prev[screenId],
+              args: {
+                ...(prev[screenId].args || {}),
+                ...(args || {}),
+              },
             },
-          },
-        };
-      }
-      return {
-        ...prev,
-        [screenId]: {
-          screenId,
-          args,
-          startTime: now,
-          accumulatedTime: 0,
-          isPaused: false,
-          sessionStartTime: now,
-        },
-      };
+          }
+        : {
+            ...prev,
+            [screenId]: {
+              screenId,
+              args,
+              startTime: now,
+              accumulatedTime: 0,
+              isPaused: false,
+              sessionStartTime: now,
+            },
+          };
+
+      // Save active sessions immediately to ensure they survive remounts
+      Quanta.asyncStorage
+        .setItem(PERSISTENCE_KEY_ACTIVE_SESSIONS, JSON.stringify(updated))
+        .catch((err) => {
+          console.error("[ScreenTracker] Error saving active sessions:", err);
+        });
+
+      console.log(
+        prev[screenId]
+          ? `[ScreenTracker] Updating existing session "${screenId}" with new args`
+          : `[ScreenTracker] Creating new session for "${screenId}"`
+      );
+
+      return updated;
     });
+
+    console.log(
+      `[ScreenTracker] Successfully started screen view for "${screenId}"`
+    );
     return screenId;
   }, []);
 
@@ -146,79 +243,218 @@ export const useScreenTracking = () => {
    */
   const endScreenView = useCallback(
     (screenId: string) => {
+      console.log(
+        `[ScreenTracker] Attempting to end screen view for "${screenId}"`
+      );
+
       const session = activeSessions[screenId];
-      if (!session) return;
+      if (!session) {
+        console.log(
+          `[ScreenTracker] No active session found for "${screenId}", checking storage`
+        );
+
+        // Try to load sessions from storage synchronously
+        Quanta.asyncStorage
+          .getItem(PERSISTENCE_KEY_ACTIVE_SESSIONS)
+          .then((sessionsJson) => {
+            if (!sessionsJson) {
+              console.log(`[ScreenTracker] No stored active sessions found`);
+              return;
+            }
+
+            const storedSessions = JSON.parse(sessionsJson);
+            const storedSession = storedSessions[screenId];
+
+            if (!storedSession) {
+              console.log(
+                `[ScreenTracker] No stored session found for "${screenId}"`
+              );
+              return;
+            }
+
+            console.log(
+              `[ScreenTracker] Found stored session for "${screenId}", processing`
+            );
+
+            // Calculate duration from stored session
+            const duration = storedSession.isPaused
+              ? storedSession.accumulatedTime
+              : storedSession.accumulatedTime +
+                (Date.now() - storedSession.startTime);
+
+            // Process the duration and log
+            finishSession(screenId, storedSession, duration);
+
+            // Remove from stored sessions
+            delete storedSessions[screenId];
+            Quanta.asyncStorage
+              .setItem(
+                PERSISTENCE_KEY_ACTIVE_SESSIONS,
+                JSON.stringify(storedSessions)
+              )
+              .catch((err) => {
+                console.error(
+                  "[ScreenTracker] Error updating stored sessions:",
+                  err
+                );
+              });
+          })
+          .catch((err) => {
+            console.error(
+              "[ScreenTracker] Error checking stored sessions:",
+              err
+            );
+          });
+
+        return;
+      }
+
+      console.log(`[ScreenTracker] Found active session for "${screenId}":`, {
+        startTime: new Date(session.startTime).toISOString(),
+        isPaused: session.isPaused,
+        accumulatedTime: session.accumulatedTime,
+        args: session.args,
+      });
 
       // Remove from active sessions
       setActiveSessions((prev) => {
+        console.log(
+          `[ScreenTracker] Removing session "${screenId}" from active sessions`
+        );
         const { [screenId]: removed, ...rest } = prev;
+
+        // Update storage after removing the session
+        Quanta.asyncStorage
+          .setItem(PERSISTENCE_KEY_ACTIVE_SESSIONS, JSON.stringify(rest))
+          .catch((err) => {
+            console.error(
+              "[ScreenTracker] Error updating stored sessions:",
+              err
+            );
+          });
+
         return rest;
       });
 
       // Calculate duration and log event
       const duration = calculateDuration(session);
-      SessionStorageService.removeSession(screenId);
-      if (duration < MINIMUM_TRACKABLE_DURATION) return;
+      console.log(
+        `[ScreenTracker] Calculated duration for "${screenId}": ${duration}ms`
+      );
 
-      // Convert duration from milliseconds to seconds
-      const durationSeconds = duration / 1000;
-
-      // Log the view event with Quanta
-      Quanta.log("view", {
-        screen: screenId,
-        seconds: shortString(durationSeconds),
-        ...session.args,
-      });
+      finishSession(screenId, session, duration);
     },
     [activeSessions]
   );
 
   /**
-   * Pause tracking for a specific screen
+   * Helper to finish a session after calculating duration
    */
-  const pauseScreenView = useCallback((screenId: string) => {
-    setActiveSessions((currentSessions) => {
-      if (!currentSessions[screenId] || currentSessions[screenId].isPaused) {
-        return currentSessions;
+  const finishSession = useCallback(
+    (screenId: string, session: ScreenSession, duration: number) => {
+      SessionStorageService.removeSession(screenId);
+      console.log(`[ScreenTracker] Removed session "${screenId}" from storage`);
+
+      if (duration < MINIMUM_TRACKABLE_DURATION) {
+        console.log(
+          `[ScreenTracker] Session "${screenId}" duration (${duration}ms) below minimum threshold (${MINIMUM_TRACKABLE_DURATION}ms), skipping analytics`
+        );
+        return;
       }
 
-      const session = currentSessions[screenId];
-      const now = Date.now();
+      // Convert duration from milliseconds to seconds
+      const durationSeconds = duration / 1000;
+      const formattedDuration = shortString(durationSeconds);
 
-      return {
-        ...currentSessions,
-        [screenId]: {
-          ...session,
-          pauseTime: now,
-          accumulatedTime: session.accumulatedTime + (now - session.startTime),
-          isPaused: true,
+      console.log(`[ScreenTracker] Logging view event for "${screenId}":`, {
+        durationMs: duration,
+        durationSec: durationSeconds,
+        formattedDuration,
+        args: session.args,
+      });
+
+      // Log the view event with Quanta
+      Quanta.logWithRevenue(
+        "view",
+        0,
+        {
+          screen: screenId,
+          seconds: formattedDuration,
+          ...session.args,
         },
-      };
-    });
-  }, []);
+        new Date(session.startTime)
+      );
+
+      console.log(
+        `[ScreenTracker] Successfully ended screen view for "${screenId}"`
+      );
+    },
+    []
+  );
+
+  /**
+   * Pause tracking for a specific screen
+   */
+  const pauseScreenView = useCallback(
+    (screenId: string) => {
+      setActiveSessions((currentSessions) => {
+        if (!currentSessions[screenId] || currentSessions[screenId].isPaused) {
+          return currentSessions;
+        }
+
+        const session = currentSessions[screenId];
+        const now = Date.now();
+
+        const updated = {
+          ...currentSessions,
+          [screenId]: {
+            ...session,
+            pauseTime: now,
+            accumulatedTime:
+              session.accumulatedTime + (now - session.startTime),
+            isPaused: true,
+          },
+        };
+
+        // Save to storage
+        saveActiveSessionsToStorage();
+
+        return updated;
+      });
+    },
+    [saveActiveSessionsToStorage]
+  );
 
   /**
    * Resume tracking for a specific screen
    */
-  const resumeScreenView = useCallback((screenId: string) => {
-    setActiveSessions((currentSessions) => {
-      if (!currentSessions[screenId] || !currentSessions[screenId].isPaused) {
-        return currentSessions;
-      }
+  const resumeScreenView = useCallback(
+    (screenId: string) => {
+      setActiveSessions((currentSessions) => {
+        if (!currentSessions[screenId] || !currentSessions[screenId].isPaused) {
+          return currentSessions;
+        }
 
-      const session = currentSessions[screenId];
+        const session = currentSessions[screenId];
 
-      return {
-        ...currentSessions,
-        [screenId]: {
-          ...session,
-          startTime: Date.now(),
-          pauseTime: undefined,
-          isPaused: false,
-        },
-      };
-    });
-  }, []);
+        const updated = {
+          ...currentSessions,
+          [screenId]: {
+            ...session,
+            startTime: Date.now(),
+            pauseTime: undefined,
+            isPaused: false,
+          },
+        };
+
+        // Save to storage
+        saveActiveSessionsToStorage();
+
+        return updated;
+      });
+    },
+    [saveActiveSessionsToStorage]
+  );
 
   /**
    * Calculate the duration of a session
@@ -265,15 +501,17 @@ export const useScreenTracking = () => {
       return updatedSessions;
     });
 
+    // After pausing, save active sessions to storage
+    saveActiveSessionsToStorage();
+
     // Persist all sessions with actual durations when going to background
-    // This is critical for crash recovery if the app is terminated while backgrounded
     persistAllSessions(true).catch((error) => {
       console.error(
         "[ScreenTracker] Error persisting sessions during pause:",
         error
       );
     });
-  }, []);
+  }, [activeSessions, saveActiveSessionsToStorage]);
 
   /**
    * Resume all active sessions (when app comes to foreground)
@@ -305,9 +543,12 @@ export const useScreenTracking = () => {
       return updatedSessions;
     });
 
+    // After resuming, save active sessions to storage
+    saveActiveSessionsToStorage();
+
     // We might also want to refresh persistence now that we're back
     setupPeriodicPersistence();
-  }, []);
+  }, [activeSessions, saveActiveSessionsToStorage]);
 
   /**
    * Handle all possible app state transitions
@@ -518,17 +759,81 @@ export const useScreenTracking = () => {
           `[ScreenTracker] Restored session "${session.screenId}" with duration ${session.accumulatedTime}ms, isEstimated=${session.isEstimated}`
         );
 
-        // In a later step, we'll send analytics for these sessions
-        // The important part is to mark these as incomplete/crashed sessions
+        // Properly restore the session to active sessions
+        // This is the key part that was missing - we need to recreate the session in our active sessions
+        if (session.accumulatedTime >= MINIMUM_TRACKABLE_DURATION) {
+          // Check if we also have an active session stored in AsyncStorage from our previous fix
+          try {
+            const activeSessionsJson = await Quanta.asyncStorage.getItem(
+              PERSISTENCE_KEY_ACTIVE_SESSIONS
+            );
 
-        // For now we'll just log the sessions we would track
-        console.log(
-          `[ScreenTracker] Would track restored session: ${
-            session.screenId
-          }, duration: ${session.accumulatedTime}ms, startTime: ${new Date(
-            session.startTime
-          ).toISOString()}`
-        );
+            if (activeSessionsJson) {
+              const activeStoredSessions = JSON.parse(activeSessionsJson);
+
+              if (activeStoredSessions[session.screenId]) {
+                // We have an active session in storage - use this as it has more accurate state
+                const storedActiveSession =
+                  activeStoredSessions[session.screenId];
+
+                console.log(
+                  `[ScreenTracker] Found active stored session for "${session.screenId}", restoring to active sessions`
+                );
+
+                setActiveSessions((prev) => ({
+                  ...prev,
+                  [session.screenId]: storedActiveSession,
+                }));
+
+                // Update the createdSessionsRef to prevent duplicate persistence
+                createdSessionsRef.current.add(session.screenId);
+
+                continue; // Skip the rest, we've handled this session
+              }
+            }
+          } catch (err) {
+            console.error(
+              "[ScreenTracker] Error checking active stored sessions:",
+              err
+            );
+          }
+
+          // If we get here, we need to create a session from the stored session data
+          const now = Date.now();
+
+          // If the session is estimated (from crash recovery), we should use the accumulatedTime
+          // directly without adding any additional time to avoid the 5s offset
+          const accumulatedTime = session.isEstimated
+            ? 0 // Start fresh for estimated sessions to avoid adding the 5s minimum
+            : session.accumulatedTime; // Use the actual time for non-estimated sessions
+
+          setActiveSessions((prev) => ({
+            ...prev,
+            [session.screenId]: {
+              screenId: session.screenId,
+              args: session.args || {},
+              startTime: now,
+              accumulatedTime: accumulatedTime,
+              isPaused: false,
+              sessionStartTime: session.startTime,
+            },
+          }));
+
+          // Make sure we mark this session as tracked
+          createdSessionsRef.current.add(session.screenId);
+
+          console.log(
+            `[ScreenTracker] Added "${session.screenId}" to active sessions with accumulated time ${accumulatedTime}ms (original: ${session.accumulatedTime}ms, isEstimated: ${session.isEstimated})`
+          );
+        } else {
+          console.log(
+            `[ScreenTracker] Would track restored session: ${
+              session.screenId
+            }, duration: ${session.accumulatedTime}ms, startTime: ${new Date(
+              session.startTime
+            ).toISOString()}`
+          );
+        }
       }
 
       // Clear stored sessions after processing
@@ -613,6 +918,14 @@ export const useScreenTracking = () => {
     // Setup periodic persistence
     setupPeriodicPersistence();
 
+    // Add initialization of active sessions from storage
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      loadActiveSessionsFromStorage().catch((err) => {
+        console.error("[ScreenTracker] Error loading active sessions:", err);
+      });
+    }
+
     // Cleanup
     return () => {
       console.log("[ScreenTracker] Cleaning up app state listener and timers");
@@ -620,8 +933,22 @@ export const useScreenTracking = () => {
       if (persistenceTimerRef.current) {
         clearInterval(persistenceTimerRef.current);
       }
+
+      // Save active sessions before unmounting
+      saveActiveSessionsToStorage().catch((err) => {
+        console.error(
+          "[ScreenTracker] Error saving sessions during cleanup:",
+          err
+        );
+      });
     };
-  }, [handleAppStateChange, setupPeriodicPersistence, determineStartupState]);
+  }, [
+    handleAppStateChange,
+    setupPeriodicPersistence,
+    determineStartupState,
+    loadActiveSessionsFromStorage,
+    saveActiveSessionsToStorage,
+  ]);
 
   /**
    * Force a persistence update when active sessions change
@@ -692,5 +1019,9 @@ export const useScreenTracking = () => {
     _appState: appStateRef.current,
     _stateTransitions: appStateTransitionsRef.current,
     _restoredSessions: restoredSessionsRef.current,
+
+    // For testing the persistence functionality
+    _loadActiveSessionsFromStorage: loadActiveSessionsFromStorage,
+    _saveActiveSessionsToStorage: saveActiveSessionsToStorage,
   };
 };

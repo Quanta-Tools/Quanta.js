@@ -6,13 +6,15 @@
     "declaration": true,
     "declarationDir": "dist",
     "outDir": "dist",
+    "preserveSymlinks": true,
     "strict": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "importHelpers": true,
-    "downlevelIteration": true
+    "downlevelIteration": true,
+    "rootDir": "src"
   },
   "include": ["src", "test"],
   "exclude": ["node_modules", "dist"]

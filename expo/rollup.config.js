@@ -32,7 +32,9 @@ export default [
       "react",
     ],
     plugins: [
-      nodeResolve(),
+      nodeResolve({
+        preserveSymlinks: true,
+      }),
       commonjs(),
       typescript({
         tsconfig: "./tsconfig.json",
@@ -41,8 +43,10 @@ export default [
           compilerOptions: {
             declaration: true,
             declarationDir: "./dist",
+            preserveSymlinks: true,
           },
         },
+        check: false, // Speed up build by skipping type-checking
       }),
       terser({
         format: {

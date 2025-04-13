@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  quanta.tools: link:..
-
 importers:
 
   .:
@@ -26,9 +23,6 @@ importers:
       expo-secure-store:
         specifier: '>=0'
         version: 14.2.0(expo@52.0.44(@babel/core@7.26.10)(@babel/preset-env@7.26.9(@babel/core@7.26.10))(react-native@0.79.0(@babel/core@7.26.10)(@types/react@19.1.1)(react@19.1.0))(react@19.1.0))
-      quanta.tools:
-        specifier: link:..
-        version: link:..
       react:
         specifier: '>=0'
         version: 19.1.0

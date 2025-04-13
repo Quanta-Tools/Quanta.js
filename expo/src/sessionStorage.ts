@@ -1,4 +1,4 @@
-import Quanta from ".";
+import { Quanta } from "./quanta";
 
 // Constants
 const PERSISTENCE_KEY = "tools.quanta.sessions";
@@ -32,6 +32,7 @@ export class SessionStorageService {
 
   /**
    * Store a single session with estimated duration
+   * This is used only for crash recovery and should not affect actual duration tracking
    */
   static async persistSessionWithEstimatedDuration(
     screenId: string,
