@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import Device from "expo-device";
-import Localization from "expo-localization";
-import Application from "expo-application";
-import { AppState, AppStateStatus, Platform } from "react-native";
+import { AppState, AppStateStatus } from "react-native";
 import { SessionStorageService, StoredSession } from "./sessionStorage";
 import { Quanta } from "./quanta";
 
@@ -147,33 +144,24 @@ export const useScreenTracking = () => {
 
       // Update state and storage atomically
       setSessions((prev) => {
-        // Either update args of existing session or create new one
-        const updated = prev[screenId]
-          ? {
-              ...prev,
-              [screenId]: {
-                ...prev[screenId],
-                args: { ...(prev[screenId].args || {}), ...(args || {}) },
-              },
-            }
-          : {
-              ...prev,
-              [screenId]: {
-                screenId,
-                args,
-                startTime: now,
-                accumulatedTime: 0,
-                isPaused: false,
-                sessionStartTime: now,
-              },
-            };
+        if (prev[screenId]) return prev;
+
+        const updated = {
+          ...prev,
+          [screenId]: {
+            screenId,
+            args,
+            startTime: now,
+            accumulatedTime: 0,
+            isPaused: false,
+            sessionStartTime: now,
+          },
+        };
 
         // Save immediately to ensure persistence across remounts
         saveToStorage(updated).catch(console.error);
         return updated;
       });
-
-      return screenId;
     },
     [saveToStorage]
   );
@@ -215,52 +203,6 @@ export const useScreenTracking = () => {
       });
     },
     [sessions, saveToStorage, endAndLogSession]
-  );
-
-  const pauseScreenView = useCallback(
-    (screenId: string) => {
-      setSessions((prev) => {
-        if (!prev[screenId] || prev[screenId].isPaused) return prev;
-
-        const session = prev[screenId];
-        const now = Date.now();
-        const updated = {
-          ...prev,
-          [screenId]: {
-            ...session,
-            accumulatedTime:
-              session.accumulatedTime + (now - session.startTime),
-            isPaused: true,
-          },
-        };
-
-        saveToStorage(updated).catch(console.error);
-        return updated;
-      });
-    },
-    [saveToStorage]
-  );
-
-  const resumeScreenView = useCallback(
-    (screenId: string) => {
-      setSessions((prev) => {
-        if (!prev[screenId] || !prev[screenId].isPaused) return prev;
-
-        const session = prev[screenId];
-        const updated = {
-          ...prev,
-          [screenId]: {
-            ...session,
-            startTime: Date.now(),
-            isPaused: false,
-          },
-        };
-
-        saveToStorage(updated).catch(console.error);
-        return updated;
-      });
-    },
-    [saveToStorage]
   );
 
   /**
@@ -427,24 +369,23 @@ export const useScreenTracking = () => {
     }
 
     persistenceTimer.current = setInterval(() => {
-      if (Object.keys(sessions).length > 0) {
-        const sessionsToStore = Object.values(sessions).map((session) => {
-          const duration = getDuration(session);
+      if (Object.keys(sessions).length == 0) return;
+      const sessionsToStore = Object.values(sessions).map((session) => {
+        const duration = getDuration(session);
 
-          return {
-            screenId: session.screenId,
-            args: session.args,
-            accumulatedTime: Math.max(duration, PERSISTENCE_INTERVAL / 2),
-            lastUpdateTime: Date.now(),
-            startTime: session.sessionStartTime,
-            isEstimated: duration < PERSISTENCE_INTERVAL / 2,
-          };
-        });
+        return {
+          screenId: session.screenId,
+          args: session.args,
+          accumulatedTime: Math.max(duration, PERSISTENCE_INTERVAL / 2),
+          lastUpdateTime: Date.now(),
+          startTime: session.sessionStartTime,
+          isEstimated: duration < PERSISTENCE_INTERVAL / 2,
+        };
+      });
 
-        SessionStorageService.persistSessions(sessionsToStore).catch(
-          console.error
-        );
-      }
+      SessionStorageService.persistSessions(sessionsToStore).catch(
+        console.error
+      );
     }, PERSISTENCE_INTERVAL);
   }, [sessions, getDuration]);
 
@@ -492,45 +433,10 @@ export const useScreenTracking = () => {
     saveToStorage,
   ]);
 
-  /**
-   * Helper for React components
-   */
-  const trackScreen = useCallback(
-    (options: ScreenViewOptions = {}) => {
-      const screenId = startScreenView(options);
-      return () => endScreenView(screenId);
-    },
-    [startScreenView, endScreenView]
-  );
-
-  /**
-   * Get device information for analytics
-   */
-  const getDeviceInfo = useCallback(
-    () => ({
-      deviceName: Device.deviceName ?? "Unknown Device",
-      deviceModel: Device.modelName ?? "Unknown Model",
-      osName: Device.osName ?? "Unknown OS",
-      osVersion: Device.osVersion ?? "Unknown Version",
-      appVersion: Application.nativeApplicationVersion ?? "Unknown App Version",
-      buildNumber: Application.nativeBuildVersion ?? "Unknown Build",
-      locale: Localization.locale,
-      timezone: Localization.timezone,
-    }),
-    []
-  );
-
   return {
     // Core tracking methods
     startScreenView,
     endScreenView,
-    pauseScreenView,
-    resumeScreenView,
-    trackScreen,
-
-    // Utilities
-    getDeviceInfo,
-    calculateDuration: getDuration,
 
     // For testing/debugging
     _activeSessions: sessions,
