@@ -34,12 +34,6 @@ beforeEach(() => {
 
 describe("SessionStorageService", () => {
   describe("persistSessions", () => {
-    // Reset mocks before each test
-    beforeEach(() => {
-      jest.clearAllMocks();
-      (SecureStore as any).__resetStore();
-    });
-
     it("should persist sessions to secure storage as JSON", async () => {
       // Arrange
       const sessions: StoredSession[] = [
@@ -423,12 +417,6 @@ describe("SessionStorageService", () => {
   });
 
   describe("removeSession", () => {
-    // Clear mocks and reset store before each test to ensure isolation
-    beforeEach(() => {
-      jest.clearAllMocks();
-      (SecureStore as any).__resetStore();
-    });
-
     it("should remove a specific session from storage", async () => {
       // Arrange
       const sessions = [
