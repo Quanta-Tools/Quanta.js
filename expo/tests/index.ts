@@ -3,3 +3,4 @@ export * from "./sessionStorage.test";
 export * from "./sessionStorage.errors.test";
 export * from "./useScreenTracking.test";
 export * from "./shortString.test";
+export * from "./durationTracking.test";

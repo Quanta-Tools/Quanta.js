@@ -210,41 +210,56 @@ export const useScreenTracking = () => {
    */
   const pauseAllSessions = useCallback(() => {
     const now = Date.now();
+    let sessionsToStore: StoredSession[] = []; // Define outside to capture value
 
     setSessions((prev) => {
       const updated = { ...prev };
+      const currentSessionsToStore: StoredSession[] = []; // Calculate inside
 
       Object.keys(prev).forEach((id) => {
         if (!prev[id].isPaused) {
+          const accumulatedTime =
+            prev[id].accumulatedTime + (now - prev[id].startTime);
           updated[id] = {
             ...prev[id],
-            accumulatedTime:
-              prev[id].accumulatedTime + (now - prev[id].startTime),
+            accumulatedTime: accumulatedTime,
             isPaused: true,
           };
+          // Add the *updated* session info for persistence
+          currentSessionsToStore.push({
+            screenId: updated[id].screenId,
+            args: updated[id].args,
+            accumulatedTime: accumulatedTime, // Use the calculated time
+            lastUpdateTime: now,
+            startTime: updated[id].sessionStartTime,
+            isEstimated: false, // Pausing implies it's not a fresh estimate
+          });
+        } else {
+          // If already paused, still include it for persistence
+          currentSessionsToStore.push({
+            screenId: prev[id].screenId,
+            args: prev[id].args,
+            accumulatedTime: prev[id].accumulatedTime,
+            lastUpdateTime: now, // Update timestamp
+            startTime: prev[id].sessionStartTime,
+            isEstimated: false,
+          });
         }
       });
 
+      // Save updated state to active session storage
       saveToStorage(updated).catch(console.error);
+      sessionsToStore = currentSessionsToStore; // Assign calculated sessions
       return updated;
     });
 
-    // Persist sessions for crash recovery
-    const sessionsToStore = Object.values(sessions).map((session) => ({
-      screenId: session.screenId,
-      args: session.args,
-      accumulatedTime: getDuration(session),
-      lastUpdateTime: Date.now(),
-      startTime: session.sessionStartTime,
-      isEstimated: false,
-    }));
-
+    // Persist sessions for crash recovery using the correctly calculated data
     if (sessionsToStore.length > 0) {
       SessionStorageService.persistSessions(sessionsToStore).catch(
         console.error
       );
     }
-  }, [sessions, getDuration, saveToStorage]);
+  }, [saveToStorage]);
 
   const resumeAllSessions = useCallback(() => {
     const now = Date.now();
