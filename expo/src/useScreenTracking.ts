@@ -95,41 +95,12 @@ export const useScreenTracking = () => {
     return session.accumulatedTime + (Date.now() - session.startTime);
   }, []);
 
-  const endAndLogSession = useCallback(
-    (screenId: string, session: ScreenSession) => {
-      const duration = getDuration(session);
-
-      // Remove short sessions without logging
-      if (duration < MINIMUM_DURATION) {
-        SessionStorageService.removeSession(screenId);
-        return;
-      }
-
-      // Log the view event with formatted duration
-      const durationSec = duration / 1000;
-      Quanta.log("view", {
-        screen: screenId,
-        seconds: shortString(durationSec),
-        ...session.args,
-      });
-
-      // Update the session in storage
-      SessionStorageService.updateSessionDuration(
-        screenId,
-        duration,
-        session.args,
-        session.sessionStartTime
-      );
-    },
-    [getDuration]
-  );
-
   /**
    * Core tracking methods
    */
   const startScreenView = useCallback(
     (options: ScreenViewOptions = {}) => {
-      const { screenId = "Unknown", args } = options;
+      const { screenId = "Unknown", args } = options; // Keep args potentially undefined here
       const now = Date.now();
 
       // Create estimated duration session for crash recovery
@@ -137,7 +108,7 @@ export const useScreenTracking = () => {
         trackedScreens.current.add(screenId);
         SessionStorageService.persistSessionWithEstimatedDuration(
           screenId,
-          args,
+          args, // Pass original args (or undefined) here
           now
         );
       }
@@ -150,7 +121,7 @@ export const useScreenTracking = () => {
           ...prev,
           [screenId]: {
             screenId,
-            args,
+            args: args || {}, // Ensure args is an object in the state
             startTime: now,
             accumulatedTime: 0,
             isPaused: false,
@@ -168,41 +139,73 @@ export const useScreenTracking = () => {
 
   const endScreenView = useCallback(
     (screenId: string) => {
-      const session = sessions[screenId];
+      // Use functional update to ensure we work with the latest state
+      setSessions((currentSessions) => {
+        const session = currentSessions[screenId];
 
-      if (!session) {
-        // Try to recover from storage
-        Quanta.asyncStorage
-          .getItem(STORAGE_KEY)
-          .then((data) => {
-            if (!data) return;
+        if (!session) {
+          // If still not found even in latest state, try storage recovery
+          // Note: In the crash test scenario, active storage is cleared,
+          // so this recovery path is unlikely to find the session here.
+          Quanta.asyncStorage
+            .getItem(STORAGE_KEY)
+            .then((data) => {
+              if (!data) return;
+              try {
+                const stored = JSON.parse(data);
+                const storedSession = stored[screenId];
+                if (!storedSession) return;
 
-            const stored = JSON.parse(data);
-            const storedSession = stored[screenId];
-            if (!storedSession) return;
+                // Log the recovered session if found (unlikely in crash test)
+                endAndLogSession(screenId, storedSession);
 
-            // Handle stored session
-            endAndLogSession(screenId, storedSession);
+                // Remove from storage (if recovered)
+                delete stored[screenId];
+                saveToStorage(stored).catch(console.error);
+              } catch (e) {
+                console.error(
+                  "[ScreenTracker] Error processing storage recovery in endScreenView:",
+                  e
+                );
+              }
+            })
+            .catch(console.error);
 
-            // Remove from storage
-            delete stored[screenId];
-            saveToStorage(stored).catch(console.error);
-          })
-          .catch(console.error);
-        return;
-      }
+          return currentSessions; // No change if session not found
+        }
 
-      // Handle active session
-      endAndLogSession(screenId, session);
+        // --- Session found in current state ---
+        const duration = getDuration(session);
 
-      // Remove from state
-      setSessions((prev) => {
-        const { [screenId]: _, ...rest } = prev;
-        saveToStorage(rest).catch(console.error);
-        return rest;
+        // Remove short sessions without logging
+        if (duration < MINIMUM_DURATION) {
+          SessionStorageService.removeSession(screenId); // Ensure removal from persistent storage
+        } else {
+          // Log the view event for valid durations
+          const durationSec = duration / 1000;
+          Quanta.log("view", {
+            screen: screenId,
+            seconds: shortString(durationSec),
+            ...(session.args || {}),
+          });
+
+          // Update the session in persistent storage
+          SessionStorageService.updateSessionDuration(
+            screenId,
+            duration,
+            session.args || {},
+            session.sessionStartTime
+          );
+        }
+
+        // Remove the session from active state
+        const { [screenId]: _, ...rest } = currentSessions;
+        saveToStorage(rest).catch(console.error); // Save the updated active state
+        return rest; // Return the new state without the ended session
       });
     },
-    [sessions, saveToStorage, endAndLogSession]
+    // Dependencies: saveToStorage, getDuration. 'sessions' is removed as we use the functional update form.
+    [saveToStorage, getDuration]
   );
 
   /**
@@ -335,34 +338,38 @@ export const useScreenTracking = () => {
         : {};
 
       // Process each session
+      // Build updates outside the loop to set state once
+      const newSessions: Record<string, ScreenSession> = {};
       for (const session of validSessions) {
         const { screenId } = session;
 
         // Prefer active sessions from storage over restored ones
         if (activeStored[screenId]) {
-          setSessions((prev) => ({
-            ...prev,
-            [screenId]: activeStored[screenId],
-          }));
+          newSessions[screenId] = activeStored[screenId];
           trackedScreens.current.add(screenId);
           continue;
         }
 
         // Create a fresh session from restored data
         // Reset accumulated time for estimated sessions to avoid adding minimum estimated duration
-        setSessions((prev) => ({
-          ...prev,
-          [screenId]: {
-            screenId,
-            args: session.args || {},
-            startTime: now,
-            accumulatedTime: session.isEstimated ? 0 : session.accumulatedTime,
-            isPaused: false,
-            sessionStartTime: session.startTime,
-          },
-        }));
+        newSessions[screenId] = {
+          screenId,
+          args: session.args || {}, // Ensure args is an object
+          startTime: now,
+          accumulatedTime: session.isEstimated ? 0 : session.accumulatedTime,
+          isPaused: false,
+          sessionStartTime: session.startTime,
+        };
 
         trackedScreens.current.add(screenId);
+      }
+
+      // Update state with all processed sessions at once
+      if (Object.keys(newSessions).length > 0) {
+        setSessions((prev) => ({
+          ...prev,
+          ...newSessions,
+        }));
       }
 
       // Clear stored sessions after processing
@@ -373,7 +380,7 @@ export const useScreenTracking = () => {
         error
       );
     }
-  }, []);
+  }, []); // Removed dependencies that might cause unnecessary reruns
 
   /**
    * Setup periodic persistence for crash recovery
@@ -446,6 +453,7 @@ export const useScreenTracking = () => {
     processRestoredSessions,
     setupPersistence,
     saveToStorage,
+    getDuration, // Added getDuration
   ]);
 
   return {

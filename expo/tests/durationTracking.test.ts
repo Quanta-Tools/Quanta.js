@@ -280,15 +280,16 @@ describe("Duration Tracking Tests", () => {
 
     // Instance 2
     const hookInstance2 = useScreenTracking();
-    await Promise.resolve(); // Allow initial render
-    await Promise.resolve(); // Allow processRestoredSessions effect
-    await Promise.resolve(); // Allow async ops within processRestoredSessions
+    // Wait for initial render and effects (including async processRestoredSessions)
+    await jest.runAllTimersAsync();
+    await Promise.resolve(); // Ensure state update from setSessions settles
 
     // Advance time and end the *restarted* session
     jest.spyOn(Date, "now").mockReturnValue(1011000); // 1s elapsed since restart
     await hookInstance2.endScreenView(screenId);
-    await Promise.resolve(); // Allow endScreenView async ops
-    await Promise.resolve(); // Extra tick
+    // Wait for endScreenView async operations (log, storage)
+    await jest.runAllTimersAsync();
+    await Promise.resolve(); // Ensure log mock call settles
 
     // Expect log with duration = 0 (reset estimated) + 1s (since restart) = 1s
     expect(Quanta.log).toHaveBeenCalledWith(
@@ -318,15 +319,16 @@ describe("Duration Tracking Tests", () => {
 
     // Instance 2
     const hookInstance2 = useScreenTracking();
-    await Promise.resolve(); // Allow initial render
-    await Promise.resolve(); // Allow processRestoredSessions effect
-    await Promise.resolve(); // Allow async ops within processRestoredSessions
+    // Wait for initial render and effects (including async processRestoredSessions)
+    await jest.runAllTimersAsync();
+    await Promise.resolve(); // Ensure state update settles
 
     // Advance time and end the *restarted* session
     jest.spyOn(Date, "now").mockReturnValue(1021000); // 1s elapsed since restart
     await hookInstance2.endScreenView(screenId);
-    await Promise.resolve(); // Allow endScreenView async ops
-    await Promise.resolve(); // Extra tick
+    // Wait for endScreenView async operations (log, storage)
+    await jest.runAllTimersAsync();
+    await Promise.resolve(); // Ensure log mock call settles
 
     // Expect log with duration = 10s (capped restored) + 1s (since restart) = 11s
     expect(Quanta.log).toHaveBeenCalledWith(
@@ -379,12 +381,25 @@ describe("Duration Tracking Tests", () => {
     await Promise.resolve(); // Allow handleAppStateChange -> resumeAllSessions
     await Promise.resolve(); // Allow async ops within resumeAllSessions (saveToStorage)
     await Promise.resolve(); // Extra tick
+    jest.runAllTimers(); // Flush timers after resuming
 
-    // Check active session storage after resume
-    expect(mockAsyncStorage.setItem).toHaveBeenCalledWith(
-      "tools.quanta.active_sessions",
-      expect.stringContaining(`"isPaused":false,"startTime":1007000`) // Check resume state
+    // Check active session storage after resume using JSON parsing
+    const setItemCalls = mockAsyncStorage.setItem.mock.calls;
+    const resumeSetItemCall = setItemCalls.find(
+      (call) => call[0] === "tools.quanta.active_sessions"
     );
+    expect(resumeSetItemCall).toBeDefined();
+    if (resumeSetItemCall) {
+      try {
+        const storedData = JSON.parse(resumeSetItemCall[1]);
+        expect(storedData[screenId]).toBeDefined();
+        expect(storedData[screenId].isPaused).toBe(false);
+        expect(storedData[screenId].startTime).toBe(1007000);
+      } catch (e) {
+        // Fail test if JSON parsing fails
+        expect(e).toBeUndefined();
+      }
+    }
     mockAsyncStorage.setItem.mockClear();
 
     jest.spyOn(Date, "now").mockReturnValue(1010000); // 3s active after resume
@@ -392,6 +407,7 @@ describe("Duration Tracking Tests", () => {
     await hook.endScreenView(screenId);
     await Promise.resolve(); // Allow endScreenView async ops
     await Promise.resolve(); // Extra tick
+    jest.runAllTimers(); // Flush timers after ending view
 
     // Check final log
     expect(Quanta.log).toHaveBeenCalledWith(
