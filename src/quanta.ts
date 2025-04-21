@@ -5,6 +5,10 @@ function fullPath(url: Location | URL) {
 }
 
 export class QuantaWebType extends AbstractQuantaBase {
+  init() {
+    this.initializeAsync(undefined, true).catch(() => {});
+  }
+
   public async sendViewEvent() {
     if (!this._initialized) {
       await this.initializeAsync();

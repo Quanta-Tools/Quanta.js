@@ -11,6 +11,10 @@ import Application from "expo-application";
 import { AbstractQuantaBase } from "./abstract";
 
 class QuantaExpoType extends AbstractQuantaBase {
+  init() {
+    this.initializeAsync(undefined, true).catch(() => {});
+  }
+
   makeAsyncStorage() {
     return {
       setItem: async (key: string, value: string) => {

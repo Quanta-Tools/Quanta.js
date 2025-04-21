@@ -63,10 +63,12 @@ export abstract class AbstractQuantaBase {
     }
 
     if (this._initializing++ !== 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 10));
-      if (this._initializingPromise) {
-        await this._initializingPromise;
+      while (!this._initializingPromise) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 100));
       }
+      await this._initializingPromise;
+      await this.initializeAsync(appId, silent);
+
       return;
     }
 
@@ -74,56 +76,61 @@ export abstract class AbstractQuantaBase {
     this._initializingPromise = new Promise<void>((resolve) => {
       resolvePromise = resolve;
     });
+    try {
+      if (this.isServerSide()) {
+        if (silent) return;
+        console.info("[Quanta] Skipping client sdk call on server.");
+        return;
+      }
 
-    if (this.isServerSide()) {
-      if (silent) return;
-      console.info("[Quanta] Skipping client sdk call on server.");
-      return;
+      // Parse any data attributes on the script tag
+      this.parseScriptTagAttributes();
+
+      // Auto-detect app ID from script tag if not provided
+      this._appId =
+        appId ?? this.getAppIdFromScriptTag() ?? (await this.loadAppId()) ?? "";
+
+      if (!this._appId) {
+        if (silent) return;
+        this.debugWarn(
+          "No Quanta app ID provided. Analytics will not be sent."
+        );
+        return;
+      }
+      await this.setAppId(this._appId);
+
+      // Load or generate user ID
+      this._id = await this.loadOrCreateId();
+      this._installDate = await this.loadOrCreateInstallDate();
+
+      // Load AB test settings
+      const abJson = (await this.asyncStorage.getItem("tools.quanta.ab")) || "";
+      this._abLetters = this.getAbLetters(abJson);
+      this._abDict = this.getAbDict(abJson);
+
+      // Setup URL change listeners
+      this.setupUrlChangeListeners();
+
+      // Load any queued events
+      await this.loadQueue();
+
+      // Process any queued events
+      await this.processQueue();
+
+      // Check if app is claimed (only in debug mode)
+      if (this.isDebug()) {
+        this.checkClaimed().catch(console.error);
+      }
+
+      this.debugLog("Quanta initialized");
+      this._initialized = true;
+
+      // Send launch event
+      await this.maybeSendViewEvent();
+    } finally {
+      this._initializing--;
+      resolvePromise();
     }
-
-    // Parse any data attributes on the script tag
-    this.parseScriptTagAttributes();
-
-    // Auto-detect app ID from script tag if not provided
-    this._appId =
-      appId ?? this.getAppIdFromScriptTag() ?? (await this.loadAppId()) ?? "";
-
-    if (!this._appId) {
-      if (silent) return;
-      this.debugWarn("No Quanta app ID provided. Analytics will not be sent.");
-      return;
-    }
-    await this.setAppId(this._appId);
-
-    // Load or generate user ID
-    this._id = await this.loadOrCreateId();
-    this._installDate = await this.loadOrCreateInstallDate();
-
-    // Load AB test settings
-    const abJson = (await this.asyncStorage.getItem("tools.quanta.ab")) || "";
-    this._abLetters = this.getAbLetters(abJson);
-    this._abDict = this.getAbDict(abJson);
-
-    // Setup URL change listeners
-    this.setupUrlChangeListeners();
-
-    // Load any queued events
-    await this.loadQueue();
-
-    // Process any queued events
-    await this.processQueue();
-
-    // Check if app is claimed (only in debug mode)
-    if (this.isDebug()) {
-      this.checkClaimed().catch(console.error);
-    }
-
-    this.debugLog("Quanta initialized");
-    this._initialized = true;
-    resolvePromise();
-
-    // Send launch event
-    await this.maybeSendViewEvent();
   }
 
   /**

@@ -60,9 +60,6 @@ const getDuration = (session: StoredSession): number => {
 };
 
 const initialize = async () => {
-  // initialize quanta if possible. will fail silently if no appId is set.
-  await Quanta.initializeAsync(undefined, true);
-
   if (!Quanta.getAppId() && __DEV__) {
     console.warn(
       "Make sure your Quanta AppId is set! Check https://github.com/Quanta-Tools/Quanta.js/tree/main/expo#set-appid for more information."
