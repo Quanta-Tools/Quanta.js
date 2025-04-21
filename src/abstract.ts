@@ -29,6 +29,10 @@ export abstract class AbstractQuantaBase {
 
   public asyncStorage = this.makeAsyncStorage();
 
+  public getAppId() {
+    return this._appId;
+  }
+
   /**
    * Initialize the Quanta SDK
    * @param appId Your Quanta application ID (optional if loaded via script tag)
@@ -49,7 +53,7 @@ export abstract class AbstractQuantaBase {
    * Initialize the Quanta SDK
    * @param appId Your Quanta application ID (optional if loaded via script tag)
    */
-  async initializeAsync(appId?: string) {
+  async initializeAsync(appId?: string, silent: boolean = false) {
     if (this._initialized) {
       if (appId) {
         this._appId = appId;
@@ -72,6 +76,7 @@ export abstract class AbstractQuantaBase {
     });
 
     if (this.isServerSide()) {
+      if (silent) return;
       console.info("[Quanta] Skipping client sdk call on server.");
       return;
     }
@@ -84,6 +89,7 @@ export abstract class AbstractQuantaBase {
       appId ?? this.getAppIdFromScriptTag() ?? (await this.loadAppId()) ?? "";
 
     if (!this._appId) {
+      if (silent) return;
       this.debugWarn("No Quanta app ID provided. Analytics will not be sent.");
       return;
     }
@@ -656,8 +662,11 @@ export abstract class AbstractQuantaBase {
     return Math.abs(hash % 100);
   }
 
-  protected generateUuid(): string {
-    // Simple implementation of RFC4122 version 4 UUIDs
+  /**
+   * Simple implementation of RFC4122 version 4 UUIDs
+   * @returns A UUID string
+   */
+  public generateUuid(): string {
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
       /[xy]/g,
       function (c) {

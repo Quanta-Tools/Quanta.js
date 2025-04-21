@@ -1,6 +1,6 @@
 import { Quanta } from "./quanta";
 
-export { useScreenTracking } from "./useScreenTracking";
+export { useScreenTracking, useQuanta } from "./useScreenTracking";
 
 export { Quanta };
 export default Quanta;

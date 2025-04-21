@@ -25,6 +25,7 @@ export declare abstract class AbstractQuantaBase {
         getItem: (key: string) => Promise<string | null>;
         setItem: (key: string, value: string) => Promise<void>;
     };
+    getAppId(): string;
     /**
      * Initialize the Quanta SDK
      * @param appId Your Quanta application ID (optional if loaded via script tag)
@@ -36,7 +37,7 @@ export declare abstract class AbstractQuantaBase {
      * Initialize the Quanta SDK
      * @param appId Your Quanta application ID (optional if loaded via script tag)
      */
-    initializeAsync(appId?: string): Promise<void>;
+    initializeAsync(appId?: string, silent?: boolean): Promise<void>;
     /**
      * Set up listeners to detect URL changes from both history API and navigation events
      */
@@ -135,7 +136,11 @@ export declare abstract class AbstractQuantaBase {
     protected getAbLetters(abJson: string): string;
     protected getAbDict(abJson: string): Record<string, string>;
     protected stringToNumber(input: string): number;
-    protected generateUuid(): string;
+    /**
+     * Simple implementation of RFC4122 version 4 UUIDs
+     * @returns A UUID string
+     */
+    generateUuid(): string;
     protected shortenUuid(uuidStr: string): string;
     protected isValidUUID(str: string): boolean;
     protected shouldLog(): boolean;

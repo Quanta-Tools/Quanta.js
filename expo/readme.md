@@ -6,17 +6,44 @@ A lightweight analytics and screen tracking SDK for React Native and Expo applic
 
 ```bash
 # Using npm
-npm install expo-quanta.tools
+npm install expo-quanta
 
 # Using pnpm
-npm install expo-quanta.tools
+npm install expo-quanta
 
 # Using yarn
-yarn add expo-quanta.tools
+yarn add expo-quanta
 
 # Using pnpm
-pnpm add expo-quanta.tools
+pnpm add expo-quanta
 ```
+
+## Set AppID
+
+You can either call
+
+```ts
+import { Quanta } from "expo-quanta";
+
+Quanta.initialize("your app id");
+```
+
+in your App's initialization routine, or you can add
+
+```diff
+{
+  "expo": {
+    "name": "MyApp",
+    "slug": "my-app",
+    "version": "1.0.0",
+    "extra": {
++     "QuantaId": "your app id"
+    }
+  }
+}
+```
+
+to your app's `app.json` file.
 
 ## Requirements
 
@@ -30,43 +57,17 @@ The following Expo modules are required:
 
 ## Basic Usage
 
-### Initialize Quanta
-
-Initialize Quanta in your app entry point:
-
-```javascript
-// App.js or index.js
-import { Quanta } from 'expo-quanta.tools';
-
-// Initialize with your project ID
-Quanta.init('your-project-id');
-
-export default function App() {
-  return (
-    // Your app components
-  );
-}
-```
-
 ### Track Screen Views
 
 Use the `useScreenTracking` hook to track user time spent on screens:
 
 ```jsx
-import React, { useEffect } from "react";
+import React from "react";
 import { View, Text } from "react-native";
-import { useScreenTracking } from "expo-quanta.tools";
+import { useQuanta } from "expo-quanta";
 
 function HomeScreen() {
-  const { trackScreen } = useScreenTracking();
-
-  useEffect(() => {
-    // Start tracking when component mounts, end when unmounts
-    return trackScreen({
-      screenId: "HomeScreen",
-      args: { source: "direct_navigation" },
-    });
-  }, []);
+  useQuanta("HomeScreen", { someOther: "args" });
 
   return (
     <View>
@@ -77,6 +78,42 @@ function HomeScreen() {
 ```
 
 ## API Reference
+
+### useQuanta Hook
+
+The simplest way to track screen views in functional components. This hook automatically handles tracking when a component mounts and unmounts.
+
+#### Usage
+
+```jsx
+import React from "react";
+import { View, Text } from "react-native";
+import { useQuanta } from "expo-quanta";
+
+function HomeScreen() {
+  // Track this screen with optional metadata
+  useQuanta("HomeScreen", { category: "main", feature: "dashboard" });
+
+  return (
+    <View>
+      <Text>Welcome to Home Screen</Text>
+    </View>
+  );
+}
+```
+
+#### Parameters
+
+- `screenId: string` - Identifier for the screen being tracked
+- `args?: Record<string, string>` - Optional metadata for the screen view (default: `{}`)
+
+The hook automatically:
+
+- Starts tracking when the component mounts
+- Records the time spent on the screen
+- Handles app background/foreground transitions
+- Ends tracking when the component unmounts
+- Sends analytics data to Quanta
 
 ### useScreenTracking Hook
 
@@ -109,55 +146,12 @@ const { endScreenView } = useScreenTracking();
 endScreenView("ProductDetailsScreen");
 ```
 
-##### `trackScreen(options: ScreenViewOptions)`
-
-Helper that combines `startScreenView` and `endScreenView`. Returns a cleanup function for use with `useEffect`.
-
-```javascript
-const { trackScreen } = useScreenTracking();
-
-useEffect(() => {
-  // Automatically tracks screen from mount to unmount
-  return trackScreen({
-    screenId: "CheckoutScreen",
-    args: { cartValue: "99.99" },
-  });
-}, []);
-```
-
-##### `pauseScreenView(screenId: string)` and `resumeScreenView(screenId: string)`
-
-Manually pause and resume tracking for specific screens.
-
-```javascript
-const { pauseScreenView, resumeScreenView } = useScreenTracking();
-
-// Pause tracking while a modal is shown
-pauseScreenView("ProductListScreen");
-
-// Resume tracking when modal is closed
-resumeScreenView("ProductListScreen");
-```
-
-##### `getDeviceInfo()`
-
-Get device and system information for analytics.
-
-```javascript
-const { getDeviceInfo } = useScreenTracking();
-
-async function logSystemInfo() {
-  const deviceInfo = await getDeviceInfo();
-  console.log("Device info:", deviceInfo);
-}
-```
-
 ### SessionStorageService
 
 Handles persisting and retrieving session data.
 
 ```javascript
-import { SessionStorageService } from "expo-quanta.tools";
+import { SessionStorageService } from "expo-quanta";
 
 // Check for crash evidence (sessions from previous runs)
 const hasCrash = await SessionStorageService.hasCrashEvidence();
@@ -174,16 +168,14 @@ await SessionStorageService.clearSessions();
 Static methods for core analytics.
 
 ```javascript
-import { Quanta } from "expo-quanta.tools";
+import { Quanta } from "expo-quanta";
 
 // Initialize
-Quanta.init("your-project-id");
+Quanta.initialize("your-project-id");
 
 // Track an event
-Quanta.logAsync("button_click", { buttonId: "submit", screenName: "checkout" });
-
-// Send view event
-Quanta.sendViewEvent();
+Quanta.log("button_click");
+Quanta.log("purchased", { productId: "123" });
 ```
 
 ## Advanced Usage
@@ -197,7 +189,7 @@ The `useScreenTracking` hook automatically handles app state transitions, pausin
 Session data is periodically persisted and can be retrieved after an app crash:
 
 ```javascript
-import { SessionStorageService } from "expo-quanta.tools";
+import { SessionStorageService } from "expo-quanta";
 
 async function checkForCrash() {
   if (await SessionStorageService.hasCrashEvidence()) {
