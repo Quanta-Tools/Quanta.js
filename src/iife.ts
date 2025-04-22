@@ -10,7 +10,7 @@ if (typeof window !== "undefined") {
 if (typeof window !== "undefined") {
   // if script tag loaded, initialize
   Quanta.initialize();
-  (window as unknown as { quanta: Quanta }).quanta = Quanta;
+  (window as unknown as { quanta: typeof Quanta }).quanta = Quanta;
 
   // if script tag not loaded, wait
   window.addEventListener("DOMContentLoaded", () => {

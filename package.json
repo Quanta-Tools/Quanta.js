@@ -1,6 +1,6 @@
 {
   "name": "quanta.tools",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "Quanta.js: JS SDK for Quanta Tools",
   "type": "module",
   "main": "dist/index.cjs.js",

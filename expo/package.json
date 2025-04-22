@@ -1,6 +1,6 @@
 {
   "name": "expo-quanta",
-  "version": "0.0.4n",
+  "version": "0.1.0",
   "description": "Quanta.js/Expo: Expo SDK for Quanta Tools",
   "type": "module",
   "main": "dist/index.cjs.js",
