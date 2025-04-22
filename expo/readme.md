@@ -9,13 +9,10 @@ A lightweight analytics and screen tracking SDK for React Native and Expo applic
 npm install expo-quanta
 
 # Using pnpm
-npm install expo-quanta
+pnpm install expo-quanta
 
 # Using yarn
 yarn add expo-quanta
-
-# Using pnpm
-pnpm add expo-quanta
 ```
 
 ## Set AppID
@@ -59,7 +56,7 @@ The following Expo modules are required:
 
 ### Track Screen Views
 
-Use the `useScreenTracking` hook to track user time spent on screens:
+Use the `useQuanta` hook to track user time spent on screens:
 
 ```jsx
 import React from "react";
@@ -117,33 +114,43 @@ The hook automatically:
 
 ### useScreenTracking Hook
 
-The main hook for tracking screen views and time spent on each screen.
+The more advanced hook for tracking screen views and time spent on each screen, providing greater control over tracking.
 
 #### Methods
 
-##### `startScreenView(options: ScreenViewOptions)`
+##### `startScreenView(screenId: string, args?: Record<string, string>)`
 
 Start tracking a screen view.
 
 ```javascript
-const { startScreenView } = useScreenTracking();
+const { startScreenView, endScreenView } = useScreenTracking();
 
 // Start tracking a screen
-const screenId = startScreenView({
-  screenId: "ProductDetailsScreen",
-  args: { productId: "123", category: "electronics" },
+const handle = startScreenView("ProductDetailsScreen", {
+  productId: "123",
+  category: "electronics",
 });
+
+// Later, in cleanup:
+return () => {
+  endScreenView(handle);
+};
 ```
 
-##### `endScreenView(screenId: string)`
+##### `endScreenView(handle: any)`
 
 End tracking a screen view.
 
 ```javascript
-const { endScreenView } = useScreenTracking();
+const { startScreenView, endScreenView } = useScreenTracking();
 
-// End tracking a screen
-endScreenView("ProductDetailsScreen");
+// Example in a useEffect
+useEffect(() => {
+  const handle = startScreenView("MyScreen", { param: "value" });
+  return () => {
+    endScreenView(handle);
+  };
+}, [startScreenView, endScreenView]);
 ```
 
 ### SessionStorageService
@@ -184,6 +191,32 @@ Quanta.log("purchased", { productId: "123" });
 
 The `useScreenTracking` hook automatically handles app state transitions, pausing sessions when the app goes to the background and resuming when it returns to the foreground.
 
+### Usage with useEffect
+
+For more control over screen tracking, use `useScreenTracking` with `useEffect`:
+
+```javascript
+import { useScreenTracking } from "expo-quanta";
+
+function MyScreen() {
+  const { startScreenView, endScreenView } = useScreenTracking();
+
+  useEffect(() => {
+    const handle = startScreenView("MyScreenName", { customProperty: "value" });
+
+    return () => {
+      endScreenView(handle);
+    };
+  }, [startScreenView, endScreenView]);
+
+  return (
+    <View>
+      <Text>My Screen Content</Text>
+    </View>
+  );
+}
+```
+
 ### Crash Recovery
 
 Session data is periodically persisted and can be retrieved after an app crash:
@@ -215,11 +248,14 @@ const { startScreenView, endScreenView } = useScreenTracking();
 
 // For important screens, you might want to ensure session data is persisted immediately
 async function navigateToCheckout() {
-  // End current screen with immediate persistence
-  endScreenView("ProductScreen");
+  // Track current screen with handle
+  const handle = startScreenView("ProductScreen");
+
+  // Later when navigating away
+  endScreenView(handle);
 
   // Start tracking checkout process
-  startScreenView({ screenId: "CheckoutScreen" });
+  const checkoutHandle = startScreenView("CheckoutScreen");
 
   // Navigate to checkout
   navigation.navigate("Checkout");
@@ -230,12 +266,21 @@ async function navigateToCheckout() {
 
 ### Sessions Not Being Tracked
 
-Make sure you're properly using the `trackScreen` function in a `useEffect` with an empty dependency array to ensure it runs only on mount and cleanup:
+Make sure you're properly using the hooks:
 
 ```javascript
+// For simple cases, use useQuanta
+useQuanta("MyScreen", { property: "value" });
+
+// For more control, use useScreenTracking with useEffect
+const { startScreenView, endScreenView } = useScreenTracking();
+
 useEffect(() => {
-  return trackScreen({ screenId: "MyScreen" });
-}, []); // Empty array is important!
+  const handle = startScreenView("MyScreen", { property: "value" });
+  return () => {
+    endScreenView(handle);
+  };
+}, [startScreenView, endScreenView]);
 ```
 
 ### Missing Device Information
