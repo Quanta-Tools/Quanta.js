@@ -174,27 +174,21 @@ export abstract class AbstractQuantaBase {
    * Parse data attributes from the script tag
    */
   protected parseScriptTagAttributes() {
-    const scriptTag = this.getScriptTag();
-    if (!scriptTag) return;
+    if (typeof window === "undefined") return;
 
     // Parse boolean data attributes
-    this._skipFirstViewEvent = scriptTag.hasAttribute(
-      "data-skip-first-view-event"
-    );
-    this._skipNavigationViewEvents = scriptTag.hasAttribute(
-      "data-skip-navigation-view-events"
-    );
-    this._skipAllViewEvents = scriptTag.hasAttribute(
-      "data-skip-all-view-events"
-    );
+    this._skipFirstViewEvent =
+      !!document.currentScript?.dataset?.skipFirstViewEvent;
+    this._skipNavigationViewEvents =
+      !!document.currentScript?.dataset?.skipNavigationViewEvents;
+    this._skipAllViewEvents =
+      !!document.currentScript?.dataset?.skipAllViewEvents;
 
     // Enable debug logs if requested
-    if (scriptTag.hasAttribute("data-enable-debug-logs")) {
+    if (!!document.currentScript?.dataset?.enableDebugLogs) {
       this.enableLogging();
     }
   }
-
-  abstract getScriptTag(): HTMLScriptElement | null;
 
   /**
    * Extract app ID from the script tag URL

@@ -94,37 +94,18 @@ export class QuantaWebType extends AbstractQuantaBase {
       quanta.handleUrlChange().catch(console.error);
     };
   }
-  getScriptTag() {
-    if (typeof window === "undefined") return null;
-
-    const scripts = document.getElementsByTagName("script");
-    for (let i = 0; i < scripts.length; i++) {
-      if (scripts[i].src.match(/^((https?:)?\/\/)?js\.quanta\.tools/)) {
-        return scripts[i];
-      }
-    }
-    return null;
-  }
   getAppIdFromScriptTag() {
-    try {
-      // Find all script tags
-      const script = this.getScriptTag();
-      if (!script) throw new Error("Script tag not found");
+    if (typeof window === "undefined") return null;
+    const src = document.currentScript?.dataset.src || null;
+    if (!src) return null;
 
-      const src = script.src;
-      if (!src) throw new Error("src not found");
-
-      // Match the pattern https://js.quanta.tools/app/{appId}.js
-      const match = src.match(
-        /^((https?:)?\/\/)?js\.quanta\.tools\/app\/([^\/]+)\.js(\?[^\?]*)?$/i
-      );
-      if (match && match[3]) {
-        return match[3];
-      }
-    } catch {
-      // Ignore errors
+    // Match the pattern https://js.quanta.tools/app/{appId}.js
+    const match = src.match(
+      /^((https?:)?\/\/)?js\.quanta\.tools\/app\/([^\/]+)\.js(\?[^\?]*)?$/i
+    );
+    if (match && match[3]) {
+      return match[3];
     }
-
     this.debugError(
       "Failed to extract Quanta app ID from script tag. Please make sure the script tag is loaded correctly:"
     );

@@ -34,10 +34,6 @@ class QuantaExpoType extends AbstractQuantaBase {
     await this.logAsync("launch");
   }
 
-  getScriptTag(): HTMLScriptElement | null {
-    return null;
-  }
-
   getAppIdFromScriptTag(): string | null {
     return Constants.expoConfig?.extra?.QuantaId ?? null;
   }
