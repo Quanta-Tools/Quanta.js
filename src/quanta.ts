@@ -125,7 +125,7 @@ export class QuantaWebType extends AbstractQuantaBase {
     return window.location.hostname;
   }
   getVersion() {
-    return "1.0.0";
+    return document.currentScript?.dataset?.appVersion ?? "1.0.0";
   }
   getDeviceInfo() {
     // Get user agent string
@@ -216,6 +216,22 @@ export class QuantaWebType extends AbstractQuantaBase {
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1"
     );
+  }
+  parseScriptTagAttributes() {
+    if (typeof window === "undefined") return;
+
+    // Parse boolean data attributes
+    this._skipFirstViewEvent =
+      !!document.currentScript?.dataset?.skipFirstViewEvent;
+    this._skipNavigationViewEvents =
+      !!document.currentScript?.dataset?.skipNavigationViewEvents;
+    this._skipAllViewEvents =
+      !!document.currentScript?.dataset?.skipAllViewEvents;
+
+    // Enable debug logs if requested
+    if (!!document.currentScript?.dataset?.enableDebugLogs) {
+      this.enableLogging();
+    }
   }
 }
 

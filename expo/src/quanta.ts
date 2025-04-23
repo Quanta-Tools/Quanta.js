@@ -69,6 +69,10 @@ class QuantaExpoType extends AbstractQuantaBase {
   isDebug(): boolean {
     return __DEV__ ?? false;
   }
+
+  parseScriptTagAttributes(): void {
+    // No script tag attributes in Expo
+  }
 }
 
 export const Quanta = new QuantaExpoType();

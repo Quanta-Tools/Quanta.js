@@ -173,22 +173,7 @@ export abstract class AbstractQuantaBase {
   /**
    * Parse data attributes from the script tag
    */
-  protected parseScriptTagAttributes() {
-    if (typeof window === "undefined") return;
-
-    // Parse boolean data attributes
-    this._skipFirstViewEvent =
-      !!document.currentScript?.dataset?.skipFirstViewEvent;
-    this._skipNavigationViewEvents =
-      !!document.currentScript?.dataset?.skipNavigationViewEvents;
-    this._skipAllViewEvents =
-      !!document.currentScript?.dataset?.skipAllViewEvents;
-
-    // Enable debug logs if requested
-    if (!!document.currentScript?.dataset?.enableDebugLogs) {
-      this.enableLogging();
-    }
-  }
+  abstract parseScriptTagAttributes(): void;
 
   /**
    * Extract app ID from the script tag URL
