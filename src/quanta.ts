@@ -34,7 +34,18 @@ export class QuantaWebType extends AbstractQuantaBase {
     // Initialize props with path and UTM parameters
     const props: Record<string, string> = { path, ...utmParams };
 
-    if (document.referrer) props.referrer = document.referrer;
+    // only set referrer if its domain differs from current page
+    if (document.referrer) {
+      try {
+        const refUrl = new URL(document.referrer);
+        if (refUrl.hostname !== window.location.hostname) {
+          props.referrer = document.referrer;
+        }
+      } catch {
+        // invalid referrer URL, better safe than sorry:
+        props.referrer = document.referrer;
+      }
+    }
 
     // Calculate how much space all properties take
     let totalLength = "view".length; // Event name
