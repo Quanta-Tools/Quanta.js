@@ -107,15 +107,21 @@ export class QuantaWebType extends AbstractQuantaBase {
   }
   getAppIdFromScriptTag() {
     if (typeof window === "undefined") return null;
-    const src = document.currentScript?.dataset.src || null;
+    // app id from data-quanta-app-id attribute:
+    const appId =
+      (document.currentScript as HTMLScriptElement)?.dataset.appId || null;
+    if (appId) return appId;
+
+    // app id from script tag src:
+    const src = (document.currentScript as HTMLScriptElement)?.src || null;
     if (!src) return null;
 
-    // Match the pattern https://js.quanta.tools/app/{appId}.js
+    // Match the pattern https://js.quanta.tools/app/{appId}.js or https://js.quanta.tools/{appId}.js
     const match = src.match(
-      /^((https?:)?\/\/)?js\.quanta\.tools\/app\/([^\/]+)\.js(\?[^\?]*)?$/i
+      /^((https?:)?\/\/)?js\.quanta\.tools\/(app\/)?([^\/]+)\.js(\?[^\?]*)?$/i
     );
-    if (match && match[3]) {
-      return match[3];
+    if (match && match[4]) {
+      return match[4];
     }
     this.debugError(
       "Failed to extract Quanta app ID from script tag. Please make sure the script tag is loaded correctly:"
