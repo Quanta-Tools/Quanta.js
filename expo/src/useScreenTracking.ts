@@ -84,7 +84,7 @@ const initialize = async () => {
 
 const sessionsChanged = async () => {
   if (persistenceTimer.current) {
-    clearTimeout(persistenceTimer.current); // Clear previous timer
+    clearInterval(persistenceTimer.current); // Clear previous timer
   }
 
   if (isFirstLoad.current) await initialize();
@@ -122,7 +122,6 @@ const startScreenView = (
 ) => {
   const handle = Quanta.generateUuid();
   const now = Date.now();
-  console.log("Starting screen view:", screenId, handle);
 
   sessions.current[handle] = {
     screenId,
@@ -138,10 +137,8 @@ const startScreenView = (
 const endScreenView = (handle: string) => {
   const session = sessions.current[handle];
   if (!session) {
-    console.log("Ending screen view:", handle);
     return;
   }
-  console.log("Ending screen view:", handle, JSON.stringify(session));
 
   const duration = getDuration(session);
   if (duration >= MINIMUM_DURATION) {

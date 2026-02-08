@@ -29,7 +29,6 @@ export class SessionStorageService {
   private static async getStoredSessions(): Promise<CrashedSession[]> {
     try {
       const sessionsJson = await Quanta.asyncStorage.getItem(PERSISTENCE_KEY);
-      console.log("Getting sessions:", sessionsJson);
       if (!sessionsJson) return [];
 
       return JSON.parse(sessionsJson);
@@ -45,12 +44,11 @@ export class SessionStorageService {
   public static async get() {
     if (this.sessions !== null) return this.sessions;
     this.sessions = await this.getStoredSessions();
-    return this.sessions ?? {};
+    return this.sessions ?? [];
   }
 
   public static async set(sessions: CrashedSession[]) {
     this.sessions = sessions;
-    console.log("Setting sessions:", JSON.stringify(sessions));
     await this.persistSessions(sessions);
   }
 }

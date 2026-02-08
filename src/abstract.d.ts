@@ -54,8 +54,7 @@ export declare abstract class AbstractQuantaBase {
     /**
      * Parse data attributes from the script tag
      */
-    protected parseScriptTagAttributes(): void;
-    abstract getScriptTag(): HTMLScriptElement | null;
+    abstract parseScriptTagAttributes(): void;
     /**
      * Extract app ID from the script tag URL
      * Expected format: https://js.quanta.tools/app/{appId}.js
