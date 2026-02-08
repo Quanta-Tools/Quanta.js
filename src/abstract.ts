@@ -6,7 +6,7 @@ const UNIT_SEPARATOR = "\u001F";
  */
 export abstract class AbstractQuantaBase {
   protected _initialized = false;
-  protected _initializing = 0;
+  protected _initializing = false;
   protected _initializingPromise: Promise<void> | null = null;
   protected _id = "";
   protected _appId = "";
@@ -62,15 +62,18 @@ export abstract class AbstractQuantaBase {
       return;
     }
 
-    if (this._initializing++ !== 0) {
+    if (this._initializing) {
       while (!this._initializingPromise) {
         await new Promise<void>((resolve) => setTimeout(resolve, 100));
       }
       await this._initializingPromise;
-      await this.initializeAsync(appId, silent);
-
+      if (appId && !this._appId) {
+        this._initialized = false;
+        await this.initializeAsync(appId, silent);
+      }
       return;
     }
+    this._initializing = true;
 
     let resolvePromise = () => {};
     this._initializingPromise = new Promise<void>((resolve) => {
@@ -128,7 +131,7 @@ export abstract class AbstractQuantaBase {
       // Send launch event
       await this.maybeSendViewEvent();
     } finally {
-      this._initializing--;
+      this._initializing = false;
       resolvePromise();
     }
   }

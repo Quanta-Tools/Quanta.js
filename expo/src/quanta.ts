@@ -76,5 +76,4 @@ class QuantaExpoType extends AbstractQuantaBase {
 }
 
 export const Quanta = new QuantaExpoType();
-Quanta.init();
 export { AbstractQuantaBase };

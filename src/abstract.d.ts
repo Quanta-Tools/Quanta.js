@@ -3,7 +3,7 @@
  */
 export declare abstract class AbstractQuantaBase {
     protected _initialized: boolean;
-    protected _initializing: number;
+    protected _initializing: boolean;
     protected _initializingPromise: Promise<void> | null;
     protected _id: string;
     protected _appId: string;
