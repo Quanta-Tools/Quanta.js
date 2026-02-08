@@ -392,7 +392,7 @@ export abstract class AbstractQuantaBase {
     const device = this.getDeviceInfo();
     const os = this.getOSInfoSafe();
     const bundleId = this.getBundleId();
-    const debugFlags = this.isDebug() ? 1 : 0;
+    const debugFlags = this.getDebugFlags();
     const version = this.getVersion();
     const language = this.systemLanguageProvider().replace("-", "_");
 
@@ -417,7 +417,11 @@ export abstract class AbstractQuantaBase {
     return this.getOSInfo().slice(0, 25);
   }
 
-  abstract isDebug(): boolean;
+  abstract getDebugFlags(): number;
+
+  protected isDebug(): boolean {
+    return (this.getDebugFlags() & 1) !== 0;
+  }
 
   protected safe(value: string, keepUnitSeparator: boolean = false): string {
     if (keepUnitSeparator) {

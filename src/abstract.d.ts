@@ -123,7 +123,8 @@ export declare abstract class AbstractQuantaBase {
     abstract getDeviceInfo(): string;
     abstract getOSInfo(): string;
     protected getOSInfoSafe(): string;
-    abstract isDebug(): boolean;
+    abstract getDebugFlags(): number;
+    protected isDebug(): boolean;
     protected safe(value: string, keepUnitSeparator?: boolean): string;
     protected stringForDouble(value: number): string;
     protected enqueueEvent(event: EventTask): Promise<void>;

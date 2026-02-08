@@ -11,13 +11,28 @@ import * as Application from "expo-application";
 import { AbstractQuantaBase } from "./abstract";
 
 class QuantaExpoType extends AbstractQuantaBase {
+  private _isTestFlight = false;
+
   init() {
     if (__DEV__) {
       console.warn("[Quanta] init called, appId from config:", Constants.expoConfig?.extra?.QuantaId);
     }
-    this.initializeAsync(undefined, true).catch((e) => {
+    (async () => {
+      await this.detectTestFlight();
+      await this.initializeAsync(undefined, true);
+    })().catch((e) => {
       if (__DEV__) console.error("[Quanta] Init failed:", e);
     });
+  }
+
+  private async detectTestFlight() {
+    try {
+      const releaseType = await Application.getIosApplicationReleaseTypeAsync();
+      // DEVELOPMENT = 3, AD_HOC = 4 are TestFlight/sandbox builds
+      this._isTestFlight = releaseType === 3 || releaseType === 4;
+    } catch {
+      // Not on iOS or API not available
+    }
   }
 
   makeAsyncStorage() {
@@ -71,8 +86,12 @@ class QuantaExpoType extends AbstractQuantaBase {
     return `${Device.osName ?? "Expo"} ${Device.osVersion ?? "?"}`;
   }
 
-  isDebug(): boolean {
-    return __DEV__ ?? false;
+  getDebugFlags(): number {
+    let flags = 0;
+    if (__DEV__) flags |= 1;
+    if (!Device.isDevice) flags |= 2;
+    if (this._isTestFlight) flags |= 4;
+    return flags;
   }
 
   parseScriptTagAttributes(): void {
