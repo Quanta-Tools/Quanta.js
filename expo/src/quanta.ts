@@ -2,17 +2,22 @@
 declare const __DEV__: boolean | undefined;
 
 // Import just what you need from base package
-import SecureStore from "expo-secure-store";
-import Device from "expo-device";
+import * as SecureStore from "expo-secure-store";
+import * as Device from "expo-device";
 import Constants from "expo-constants";
-import Localization from "expo-localization";
-import Application from "expo-application";
+import * as Localization from "expo-localization";
+import * as Application from "expo-application";
 // Import normally - our plugin will intercept this import
 import { AbstractQuantaBase } from "./abstract";
 
 class QuantaExpoType extends AbstractQuantaBase {
   init() {
-    this.initializeAsync(undefined, true).catch(() => {});
+    if (__DEV__) {
+      console.warn("[Quanta] init called, appId from config:", Constants.expoConfig?.extra?.QuantaId);
+    }
+    this.initializeAsync(undefined, true).catch((e) => {
+      if (__DEV__) console.error("[Quanta] Init failed:", e);
+    });
   }
 
   makeAsyncStorage() {
@@ -76,4 +81,5 @@ class QuantaExpoType extends AbstractQuantaBase {
 }
 
 export const Quanta = new QuantaExpoType();
+Quanta.init();
 export { AbstractQuantaBase };
