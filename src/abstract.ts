@@ -653,7 +653,7 @@ export abstract class AbstractQuantaBase {
    * @returns A UUID string
    */
   public generateUuid(): string {
-    if ((crypto as any).randomUUID) {
+    if (typeof crypto !== "undefined" && (crypto as any).randomUUID) {
       // Use native crypto.randomUUID if available
       return crypto.randomUUID();
     }
